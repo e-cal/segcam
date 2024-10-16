@@ -135,9 +135,9 @@
 
   users = {
     mutableUsers = false;
-    users.ecal = {
+    users.segcam = {
       isNormalUser = true;
-      password = "ecal";
+      password = "segcam";
       extraGroups = [ "wheel" "networkmanager" ];
     };
   };
