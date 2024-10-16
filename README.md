@@ -32,3 +32,6 @@ Raspberry-pi based camera that lets you segment and object track photo & video o
 9. Rebuild nixos: `sudo nixos-rebuild boot`
 10. Reboot
     - default user is `segcam` with password `segcam`
+    - will need to resetup network connection using `networkmanager`
+        - list networks: `nmcli dev wifi`
+        - connect: `nmcli dev wifi con 'SSID' --ask`
