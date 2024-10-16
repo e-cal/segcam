@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+mkdir ~/bak 2>/dev/null
+
+dirnames=($(basename -a ~/segcam/system/*/))
+
+echo "${dirs[@]}"
+echo "${dirnames[@]}"
+
+for dir in ${dirnames[@]}; do
+    [[ -d "$HOME/.config/$dir" ]] && mv "$HOME/.config/$dir" ~/bak && echo "moved ~/.config/$dir to ~/bak/$dir"
+    ln -sf "$HOME/segcam/system/$dir" $HOME/.config
+
+    if [[ $dir == "nixos" ]]; then 
+        sudo mv /etc/nixos/* $HOME/bak
+        sudo ln -sf $HOME/.config/nixos/* /etc/nixos
+        echo "linked /etc/nixos to ~/.config/nixos files. run nixos-rebuild switch to update system."
+    fi
+done
