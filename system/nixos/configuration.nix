@@ -72,6 +72,7 @@
           pygments
           numpy
           pyqt6
+          opencv4
         ]);
     })
   ];
@@ -107,6 +108,7 @@
     lua
 
     libsForQt5.qt5.qtwayland
+    opencv
 
     yapf
     shfmt
