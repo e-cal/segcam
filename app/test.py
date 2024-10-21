@@ -1,7 +1,7 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QApplication, QLabel
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QWidget, QApplication
+from PyQt5.QtCore import Qt, QTimer, QRect
+from PyQt5.QtGui import QImage, QPixmap, QPainter
 import cv2
 
 class MouseEventListener(QWidget):
@@ -11,8 +11,7 @@ class MouseEventListener(QWidget):
         self.initUI()
 
         self.capture = cv2.VideoCapture(0)
-        self.label = QLabel(self)
-        self.label.setGeometry(0, 0, 800, 600)
+        self.frame = None
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.display_feed)
@@ -30,13 +29,17 @@ class MouseEventListener(QWidget):
         print(f"Mouse Release Event at ({event.x()}, {event.y()})")
 
     def display_feed(self):
-        ret, frame = self.capture.read()
-        if ret:
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        ret, self.frame = self.capture.read()
+        self.update()
+
+    def paintEvent(self, event):
+        if self.frame is not None:
+            image = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
             height, width, channel = image.shape
             bytes_per_line = 3 * width
             qimage = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-            self.label.setPixmap(QPixmap.fromImage(qimage).scaled(800, 600))
+            qp = QPainter(self)
+            qp.drawPixmap(QRect(0, 0, 800, 600), QPixmap.fromImage(qimage).scaled(800, 600))
 
     def closeEvent(self, event):
         self.capture.release()
