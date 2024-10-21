@@ -12,21 +12,33 @@
   ];
 
   boot.loader.grub.enable = false;
-  boot.loader.generic-extlinux-compatible.enable = true;
+  # boot.loader.generic-extlinux-compatible.enable = true;
+
+  boot.loader.raspberryPi.firmwareConfig = ''
+    start_x=1
+    gpu_mem=256
+  '';
+  boot.kernelModules = [ "bcm2835-v4l2" ];
+
 
   boot.kernelPackages = pkgs.linuxPackages_rpi4;
   hardware.enableRedistributableFirmware = true;
   hardware.raspberry-pi."4" = {
     fkms-3d.enable = true;
     touch-ft5406.enable = true;
+    apply-overlays-dtmerge.enable = true;
   };
+  services.udev.extraRules = ''
+    # https://raspberrypi.stackexchange.com/a/141107
+    SUBSYSTEM=="dma_heap", GROUP="video", MODE="0660"
+  '';
+
   boot.consoleLogLevel = lib.mkDefault 3;
   nix.gc = {
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 30d";
   };
-
 
   networking.hostName = "segcam";
   networking.networkmanager.enable = true;
@@ -37,7 +49,7 @@
   programs.hyprland.enable = true;
 
   nixpkgs.overlays = [
-    (_: super: {
+    (self: super: {
       neovim-custom = pkgs.wrapNeovimUnstable
         (super.neovim-unwrapped.overrideAttrs (oldAttrs: {
           buildInputs = oldAttrs.buildInputs ++ [ super.tree-sitter ];
@@ -58,6 +70,8 @@
           customRC = "luafile ~/.config/nvim/init.lua";
         });
 
+      # opencv4WithoutCudaPython = super.python311Packages.opencv4.override
+
       pythonWithPkgs = super.python3.withPackages (ps:
         with ps; [
           pip
@@ -74,10 +88,23 @@
           pyqt6
           opencv4
         ]);
+
+    # libcamera = super.libcamera.overrideAttrs ({ patches ? [ ], ... }: {
+    #   patches = patches ++ [
+    #     (self.fetchpatch {
+    #       url = "https://patchwork.libcamera.org/patch/19420/raw";
+    #       hash = "sha256-xJ8478CAKvyo2k1zrfIytDxFQ1Qdd8ilMdABQoNcdPU=";
+    #     })
+    #   ];
+    # });
+
     })
   ];
 
   environment.systemPackages = with pkgs; [
+    libraspberrypi
+    raspberrypi-eeprom
+
     neovim-custom
     git
     github-cli
@@ -98,17 +125,16 @@
 
     libinput
     gcc
-    gnumake
-    cmake
-    clang
-    clang-tools
+    # gnumake
+    # cmake
     tree-sitter
     pythonWithPkgs
     nodejs_22
     lua
 
     libsForQt5.qt5.qtwayland
-    opencv
+    opencv4WithoutCuda
+    libcamera
 
     yapf
     shfmt
@@ -140,11 +166,10 @@
     users.segcam = {
       isNormalUser = true;
       password = "segcam";
-      extraGroups = [ "wheel" "networkmanager" ];
+      extraGroups = [ "wheel" "networkmanager" "video" ];
     };
   };
   security.sudo.wheelNeedsPassword = false;
-
 
   # Might want later:
 
