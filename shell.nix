@@ -16,6 +16,7 @@ let
       }))
       pygments
       pyqt6
+      opencv4
     ]);
 
   deps = with pkgs; [
@@ -35,6 +36,7 @@ let
     fontconfig
     python311Packages.matplotlib
     libsForQt5.qt5.qtwayland
+    opencv
   ];
 
   lib-path = with pkgs; lib.makeLibraryPath deps;
