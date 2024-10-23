@@ -182,8 +182,7 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
     def draw_masks(self, qp, height, width):
-        if not self.masks:
-            return
+        if not self.masks: return
 
         # Combine all masks
         combined_mask = np.zeros_like(self.masks[0].active_mask)
@@ -208,8 +207,7 @@ class MouseEventListener(QWidget):
             qp.drawPoint(_x, _y)
 
     def draw_detections(self, qp):
-        if not self.detections is not None:
-            return
+        if self.detections is None: return
 
         qp.setPen(QPen(QColor(255, 0, 0), 2))
         for detection in self.detections:
