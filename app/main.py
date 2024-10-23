@@ -157,8 +157,11 @@ class MouseEventListener(QWidget):
             qimage = QImage(image.data, width, height, 3 * width, QImage.Format_RGB888)
             qp = QPainter(self)
             qp.drawPixmap(
-                QRect(x_offset, y_offset, scaled_width, scaled_height),
-                QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                QRect(self.scaling.x_offset, self.scaling.y_offset, 
+                     self.scaling.scaled_width, self.scaling.scaled_height),
+                QPixmap.fromImage(qimage).scaled(
+                    self.scaling.scaled_width, self.scaling.scaled_height, 
+                    Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
             # Draw segmentation mask if available
@@ -170,15 +173,18 @@ class MouseEventListener(QWidget):
                 self.draw_detections(qp)
 
             # Calculate and draw buttons
-            button_y = y_offset + scaled_height - self.button_radius - 10
-            self.freeze_button_center = (x_offset + scaled_width // 2, button_y)
+            button_y = self.scaling.y_offset + self.scaling.scaled_height - self.button_radius - 10
+            self.freeze_button_center = (
+                self.scaling.x_offset + self.scaling.scaled_width // 2, 
+                button_y
+            )
             
             # Draw clear button if frozen
             if self.is_frozen:
                 clear_width = 60
                 clear_height = 30
-                clear_x = x_offset + scaled_width - clear_width - 10
-                clear_y = y_offset + scaled_height - clear_height - 10
+                clear_x = self.scaling.x_offset + self.scaling.scaled_width - clear_width - 10
+                clear_y = self.scaling.y_offset + self.scaling.scaled_height - clear_height - 10
                 self.clear_button_rect = QRect(clear_x, clear_y, clear_width, clear_height)
                 
                 qp.setPen(QPen(QColor(255, 255, 255), 2))
