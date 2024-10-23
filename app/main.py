@@ -184,26 +184,24 @@ class MouseEventListener(QWidget):
     def draw_masks(self, qp, height, width):
         if not self.masks: return
 
-        # Combine all masks
-        combined_mask = np.zeros_like(self.masks[0].active_mask)
+        # Draw each mask with its color
         for mask in self.masks:
-            combined_mask = np.logical_or(combined_mask, mask.active_mask)
-        mask_image = combined_mask.astype(np.uint8) * 255
-        mask_image = cv2.resize(mask_image, (width, height))
-        mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
-        mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
+            mask_image = cv2.resize(mask.active_mask.astype(np.uint8) * 255, (width, height))
+            mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
+            r, g, b = mask.color.rgb
+            mask_colored[mask_image > 0] = [r, g, b, 128]  # Semi-transparent color
 
-        mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
-        qp.drawPixmap(
-            QRect(self.scaling.x_offset, self.scaling.y_offset, self.scaling.scaled_width, self.scaling.scaled_height),
-            QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        )
+            mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
+            qp.drawPixmap(
+                QRect(self.scaling.x_offset, self.scaling.y_offset, self.scaling.scaled_width, self.scaling.scaled_height),
+                QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
 
-        # Draw all segmentation points
-        for x, y in [mask.point for mask in self.masks]:
+            # Draw segmentation point with matching color
+            x, y = mask.point
             _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
             _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
-            qp.setPen(QPen(QColor(255, 0, 0), 4))
+            qp.setPen(QPen(QColor(*mask.color.rgb), 4))
             qp.drawPoint(_x, _y)
 
     def draw_detections(self, qp):
