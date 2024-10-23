@@ -30,7 +30,7 @@ class MouseEventListener(QWidget):
         self.frozen_frame = None
         self.detections = None
         self.mask = None
-        self.click_coords = None
+        self.click_coords = []  # List of (x,y,label) tuples
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
@@ -81,10 +81,29 @@ class MouseEventListener(QWidget):
             img_y = (event.y() - y_offset) * (height / scaled_height)
 
             if 0 <= img_x < width and 0 <= img_y < height:
-                self.click_coords = (img_x, img_y)
-                # Run SAM prediction
-                results = sam(self.frame, points=[img_x, img_y], labels=[1])
-                self.mask = results[0].masks.data[0].cpu().numpy()
+                # Check if clicking near existing point
+                remove_idx = None
+                for idx, (x, y, _) in enumerate(self.click_coords):
+                    if abs(x - img_x) <= 5 and abs(y - img_y) <= 5:
+                        remove_idx = idx
+                        break
+                
+                if remove_idx is not None:
+                    # Remove the point
+                    self.click_coords.pop(remove_idx)
+                else:
+                    # Add new point
+                    self.click_coords.append((img_x, img_y, 1))
+                
+                # Run SAM prediction with all points
+                if self.click_coords:
+                    points = [[x, y] for x, y, _ in self.click_coords]
+                    labels = [label for _, _, label in self.click_coords]
+                    results = sam(self.frame, points=points, labels=labels)
+                    self.mask = results[0].masks.data[0].cpu().numpy()
+                else:
+                    self.mask = None
+                
                 self.update()
 
     def mouseReleaseEvent(self, event):
@@ -138,10 +157,10 @@ class MouseEventListener(QWidget):
                     QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 )
 
-                # Draw click point if available
-                if self.click_coords is not None:
-                    click_x = int(self.click_coords[0] * scale_x) + x_offset
-                    click_y = int(self.click_coords[1] * scale_y) + y_offset
+                # Draw all click points
+                for x, y, _ in self.click_coords:
+                    click_x = int(x * scale_x) + x_offset
+                    click_y = int(y * scale_y) + y_offset
                     qp.setPen(QPen(QColor(255, 0, 0), 4))
                     qp.drawPoint(click_x, click_y)
 
