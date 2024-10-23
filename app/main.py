@@ -32,9 +32,9 @@ class WindowScaling:
     scale_y: float
 
 class MaskColor(Enum):
-    GREEN = (0, 128, 0)
-    BLUE = (0, 0, 255)
-    PINK = (238, 84, 144)
+    GREEN = (76, 175, 80)     # Material Design Green
+    BLUE = (33, 150, 243)     # Material Design Blue
+    PINK = (233, 30, 99)      # Material Design Pink
 
     @classmethod
     def get_next_color(cls, color):
