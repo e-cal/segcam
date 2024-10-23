@@ -29,7 +29,7 @@ class MouseEventListener(QWidget):
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
-        self.mask = None
+        self.masks = []  # List to store multiple masks
         self.click_coords = []  # List of (x,y,label) tuples
 
     def initUI(self):
@@ -100,9 +100,9 @@ class MouseEventListener(QWidget):
                     points = [[x, y] for x, y, _ in self.click_coords]
                     labels = [label for _, _, label in self.click_coords]
                     results = sam(self.frame, points=points, labels=labels)
-                    self.mask = results[0].masks.data[0].cpu().numpy()
+                    self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
                 else:
-                    self.mask = None
+                    self.masks = []
                 
                 self.update()
 
@@ -145,8 +145,12 @@ class MouseEventListener(QWidget):
             scale_y = scaled_height / height
 
             # Draw segmentation mask if available
-            if self.is_frozen and self.mask is not None:
-                mask_image = self.mask.astype(np.uint8) * 255
+            if self.is_frozen and self.masks:
+                # Combine all masks
+                combined_mask = np.zeros_like(self.masks[0])
+                for mask in self.masks:
+                    combined_mask = np.logical_or(combined_mask, mask)
+                mask_image = combined_mask.astype(np.uint8) * 255
                 mask_image = cv2.resize(mask_image, (width, height))
                 mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
                 mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
