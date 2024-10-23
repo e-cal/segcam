@@ -2,3 +2,4 @@ system/zsh/.zcompdump
 system/zsh/plugins/
 .env
 *.pt
+sam2

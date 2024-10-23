@@ -18,7 +18,6 @@ yolo = YOLO("yolo11n.pt")
 # sam = SAM("sam2_s.pt")
 sam2 = SAM2ImagePredictor(build_sam2("configs/sam2.1/sam2.1_hiera_s.yaml", "checkpoints/sam2.1_hiera_small.pt"))
 
-
 SEG_POINT_RADIUS = 10
 
 Point = namedtuple("Point", ["x", "y"])
@@ -26,7 +25,7 @@ Point = namedtuple("Point", ["x", "y"])
 @dataclass
 class WindowScaling:
     scaled_width: int
-    scaled_height: int 
+    scaled_height: int
     x_offset: int
     y_offset: int
     scale_x: float
@@ -51,16 +50,15 @@ class MaskColor(Enum):
 
 @dataclass
 class Mask:
-    point: Point # click coordinates
-    masks: np.ndarray # computed masks for the current point
-    active: int # index of the active mask
-    label: Literal[0, 1] = 1 # background (0) or foreground (1)
+    point: Point  # click coordinates
+    masks: np.ndarray  # computed masks for the current point
+    active: int  # index of the active mask
+    label: Literal[0, 1] = 1  # background (0) or foreground (1)
     color: MaskColor = MaskColor.GREEN
 
     @property
     def active_mask(self):
         return self.masks[self.active]
-
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -183,11 +181,10 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-
     def draw_masks(self, qp, height, width):
         if not self.masks:
             return
-            
+
         # Combine all masks
         combined_mask = np.zeros_like(self.masks[0].active_mask)
         for mask in self.masks:
@@ -213,7 +210,7 @@ class MouseEventListener(QWidget):
     def draw_detections(self, qp):
         if not self.detections is not None:
             return
-            
+
         qp.setPen(QPen(QColor(255, 0, 0), 2))
         for detection in self.detections:
             x1, y1, x2, y2, conf, cls = detection
@@ -270,13 +267,13 @@ class MouseEventListener(QWidget):
                 repeat_idx = idx
                 break
 
-        if repeat_idx is not None: # cycle mask
+        if repeat_idx is not None:  # cycle mask
             mask = self.masks[repeat_idx]
             if mask.active < len(mask.masks) - 1:
                 pass
             else:
                 self.masks.pop(repeat_idx)
-        else: # new mask
+        else:  # new mask
             with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                 sam2.set_image(self.frame)
                 masks, _, _ = sam2.predict([point], [1])
@@ -284,9 +281,6 @@ class MouseEventListener(QWidget):
             self.masks.append(Mask(point, masks, 0))
 
         self.update()
-
-
-
 
     def closeEvent(self, event):
         self.camera.release()
