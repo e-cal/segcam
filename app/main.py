@@ -6,7 +6,7 @@ import cv2
 import math
 import numpy as np
 from ultralytics import YOLO
-from mobile_sam import sam_model_registry, SamPredictor
+from 
 
 model = YOLO("yolo11n.pt")
 sam_model = sam_model_registry["mobile_sam"](checkpoint="mobile_sam.pt")
