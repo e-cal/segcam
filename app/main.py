@@ -122,35 +122,36 @@ class MouseEventListener(QWidget):
         if self.frame is not None:
             self.detections = yolo(self.frame)[0].boxes.data
 
-    def _get_img_scaling(self, image):
-        # Calculate scaling to maintain aspect ratio
-        window_width = self.width()
-        window_height = self.height()
-        height, width, channel = image.shape
-        image_aspect = width / height
-        window_aspect = window_width / window_height
-        if window_aspect > image_aspect:
+    def _get_scaling(self):
+        """Calculate window scaling parameters to maintain aspect ratio"""
+        assert self.frame is not None
+        height, width = self.frame.shape[:2]
+        win_w, win_h = self.width(), self.height()
+        
+        if (win_w / win_h) > (width / height):
             # Window is wider than image
-            scaled_width = int(window_height * image_aspect)
-            scaled_height = window_height
-            x_offset = (window_width - scaled_width) // 2
-            y_offset = 0
+            scaled_h = win_h
+            scaled_w = int(win_h * width / height)
+            offset_x = (win_w - scaled_w) // 2
+            offset_y = 0
         else:
             # Window is taller than image
-            scaled_width = window_width
-            scaled_height = int(window_width / image_aspect)
-            x_offset = 0
-            y_offset = (window_height - scaled_height) // 2
+            scaled_w = win_w 
+            scaled_h = int(win_w * height / width)
+            offset_x = 0
+            offset_y = (win_h - scaled_h) // 2
 
-        return scaled_width, scaled_height, x_offset, y_offset, scaled_width / width, scaled_height / height
+        return WindowScaling(
+            scaled_w, scaled_h, 
+            offset_x, offset_y,
+            scaled_w / width, scaled_h / height
+        )
 
     def paintEvent(self, event):
         if self.frame is not None:
-            # Get the current camera frame
             image = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-            height, width, channel = image.shape
-            scaled_width, scaled_height, x_offset, y_offset, scale_x, scale_y = self._get_img_scaling(image)
-            self.scaling = WindowScaling(scaled_width, scaled_height, x_offset, y_offset, scale_x, scale_y)
+            height, width = image.shape[:2]
+            self.scaling = self._get_scaling()
 
             # Draw camera image
             qimage = QImage(image.data, width, height, 3 * width, QImage.Format_RGB888)
@@ -250,34 +251,20 @@ class MouseEventListener(QWidget):
             label = f"{class_name} {confidence}"
             qp.drawText(x1, y1 - 5, label)
 
-    def _convert_for_segmentation(self, event):
-        # Convert click coordinates back to image space
+    def _window_to_image_coords(self, event):
+        """Convert window coordinates to image coordinates"""
         assert self.frame is not None
         height, width = self.frame.shape[:2]
-        window_width = self.width()
-        window_height = self.height()
-        image_aspect = width / height
-        window_aspect = window_width / window_height
-        if window_aspect > image_aspect:
-            scaled_width = int(window_height * image_aspect)
-            scaled_height = window_height
-            x_offset = (window_width - scaled_width) // 2
-            y_offset = 0
-        else:
-            scaled_width = window_width
-            scaled_height = int(window_width / image_aspect)
-            x_offset = 0
-            y_offset = (window_height - scaled_height) // 2
-
+        scaling = self._get_scaling()
+        
         # Convert click to image coordinates
-        img_x = (event.x() - x_offset) * (width / scaled_width)
-        img_y = (event.y() - y_offset) * (height / scaled_height)
-        point = Point(img_x, img_y)
-
-        return point, width, height
+        img_x = (event.x() - scaling.x_offset) / scaling.scale_x
+        img_y = (event.y() - scaling.y_offset) / scaling.scale_y
+        
+        return Point(img_x, img_y), width, height
 
     def segment(self, event):
-        point, width, height = self._convert_for_segmentation(event)
+        point, width, height = self._window_to_image_coords(event)
         if not ((0 <= point.x < width) and (0 <= point.y < height)): return
 
         # check if click is a pre-existing point
