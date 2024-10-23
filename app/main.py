@@ -209,16 +209,16 @@ class MouseEventListener(QWidget):
                 # Add new point
                 self.click_coords.append((img_x, img_y, 1))
 
-            # Run SAM prediction with all points
-            if self.click_coords:
-                points = [[x, y] for x, y, _ in self.click_coords]
-                # labels = [label for _, _, label in self.click_coords]
-                results = sam(self.frame, points=points)#, labels=labels)
-                print(len(results))
-                print(len(results[0].masks))
-                self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
+            if remove_idx is not None:
+                # Remove the mask along with the point
+                if remove_idx < len(self.masks):
+                    self.masks.pop(remove_idx)
             else:
-                self.masks = []
+                # Only compute new mask for the added point
+                point = [[img_x, img_y]]
+                results = sam(self.frame, points=point)
+                new_mask = results[0].masks.data[0].cpu().numpy()
+                self.masks.append(new_mask)
 
             self.update()
 
