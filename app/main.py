@@ -5,15 +5,10 @@ from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 import cv2
 import math
 import numpy as np
-from ultralytics import YOLO
-import torch
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
+from ultralytics import YOLO, SAM
 
-model = YOLO("yolo11n.pt")
-checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
-model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
-predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
+yolo_model = YOLO("yolo11n.pt")
+sam_model = SAM("sam2_b.pt")
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -50,7 +45,7 @@ class MouseEventListener(QWidget):
     def capture(self):
         self.display_feed()
         if self.frame is not None:
-            self.detections = model(self.frame)[0]
+            self.detections = yolo_model(self.frame)[0].boxes.data
 
     def is_button_press(self, x, y):
         assert self.button_center is not None
@@ -87,14 +82,9 @@ class MouseEventListener(QWidget):
             
             if 0 <= img_x < width and 0 <= img_y < height:
                 self.click_coords = (img_x, img_y)
-                # Run SAM2 prediction
-                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-                    predictor.set_image(self.frame)
-                    masks, _, _ = predictor.predict(
-                        point_coords=np.array([[img_x, img_y]]),
-                        point_labels=np.array([1])
-                    )
-                self.mask = masks[0]
+                # Run SAM prediction
+                results = sam_model(self.frame, points=[img_x, img_y], labels=[1])
+                self.mask = results[0].masks.data[0].cpu().numpy()
                 self.update()
 
     def mouseReleaseEvent(self, event):
@@ -161,7 +151,7 @@ class MouseEventListener(QWidget):
                 scale_x = scaled_width / width
                 scale_y = scaled_height / height
                 
-                for detection in self.detections.boxes.data:
+                for detection in self.detections:
                     x1, y1, x2, y2, conf, cls = detection
                     
                     # Scale coordinates
