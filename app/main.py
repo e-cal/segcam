@@ -96,6 +96,9 @@ class MouseEventListener(QWidget):
             if not self.is_frozen: self.freeze()
             self.is_frozen = not self.is_frozen
             self.update()
+        elif self.is_clear_button_press(event.x(), event.y()):
+            self.masks.clear()
+            self.update()
         elif self.is_frozen and self.frame is not None:
             self.segment(event)
 
