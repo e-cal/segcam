@@ -7,8 +7,8 @@ import math
 import numpy as np
 from ultralytics import YOLO, SAM
 
-yolo_model = YOLO("yolo11n.pt")
-sam_model = SAM("sam2_b.pt")
+yolo = YOLO("yolo11n.pt")
+sam = SAM("sam2_t.pt")
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -45,7 +45,7 @@ class MouseEventListener(QWidget):
     def capture(self):
         self.display_feed()
         if self.frame is not None:
-            self.detections = yolo_model(self.frame)[0].boxes.data
+            self.detections = yolo(self.frame)[0].boxes.data
 
     def is_button_press(self, x, y):
         assert self.button_center is not None
@@ -64,7 +64,7 @@ class MouseEventListener(QWidget):
             window_height = self.height()
             image_aspect = width / height
             window_aspect = window_width / window_height
-            
+
             if window_aspect > image_aspect:
                 scaled_width = int(window_height * image_aspect)
                 scaled_height = window_height
@@ -75,15 +75,15 @@ class MouseEventListener(QWidget):
                 scaled_height = int(window_width / image_aspect)
                 x_offset = 0
                 y_offset = (window_height - scaled_height) // 2
-            
+
             # Convert click to image coordinates
             img_x = (event.x() - x_offset) * (width / scaled_width)
             img_y = (event.y() - y_offset) * (height / scaled_height)
-            
+
             if 0 <= img_x < width and 0 <= img_y < height:
                 self.click_coords = (img_x, img_y)
                 # Run SAM prediction
-                results = sam_model(self.frame, points=[img_x, img_y], labels=[1])
+                results = sam(self.frame, points=[img_x, img_y], labels=[1])
                 self.mask = results[0].masks.data[0].cpu().numpy()
                 self.update()
 
@@ -131,13 +131,13 @@ class MouseEventListener(QWidget):
                 mask_image = cv2.resize(mask_image, (width, height))
                 mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
                 mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
-                
+
                 mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
                 qp.drawPixmap(
                     QRect(x_offset, y_offset, scaled_width, scaled_height),
                     QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 )
-                
+
                 # Draw click point if available
                 if self.click_coords is not None:
                     click_x = int(self.click_coords[0] * scale_x) + x_offset
@@ -150,27 +150,27 @@ class MouseEventListener(QWidget):
                 # Scale factor for coordinates
                 scale_x = scaled_width / width
                 scale_y = scaled_height / height
-                
+
                 for detection in self.detections:
                     x1, y1, x2, y2, conf, cls = detection
-                    
+
                     # Scale coordinates
                     x1 = int(x1.item() * scale_x) + x_offset
                     y1 = int(y1.item() * scale_y) + y_offset
                     x2 = int(x2.item() * scale_x) + x_offset
                     y2 = int(y2.item() * scale_y) + y_offset
-                    
+
                     # Draw box
                     qp.setPen(QPen(QColor(255, 0, 0), 2))
-                    qp.drawRect(x1, y1, x2-x1, y2-y1)
-                    
+                    qp.drawRect(x1, y1, x2 - x1, y2 - y1)
+
                     # Draw label
-                    class_name = yolo_model.names[int(cls.item())]
+                    class_name = yolo.names[int(cls.item())]
                     confidence = f"{conf.item():.2f}"
                     label = f"{class_name} {confidence}"
-                    
+
                     qp.setPen(QPen(QColor(255, 0, 0)))
-                    qp.drawText(x1, y1-5, label)
+                    qp.drawText(x1, y1 - 5, label)
 
             # Calculate button position at bottom center of camera image
             self.button_center = (x_offset + scaled_width // 2, y_offset + scaled_height - self.button_radius - 10)
