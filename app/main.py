@@ -31,9 +31,13 @@ class MouseEventListener(QWidget):
 
     def mousePressEvent(self, event):
         if self.is_inside_circle(event.x(), event.y()):
+            if not self.is_frozen:
+                # Capture current frame before freezing
+                ret, current_frame = self.capture.read()
+                if ret:
+                    self.frozen_frame = current_frame
+                    self.frame = current_frame
             self.is_frozen = not self.is_frozen
-            if self.is_frozen:
-                self.frozen_frame = self.frame.copy()
             self.update()
 
     def mouseReleaseEvent(self, event):
