@@ -1,2 +1,4 @@
 system/zsh/.zcompdump
 system/zsh/plugins/
+.env
+*.pt

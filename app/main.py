@@ -87,14 +87,14 @@ class MouseEventListener(QWidget):
                     if abs(x - img_x) <= 5 and abs(y - img_y) <= 5:
                         remove_idx = idx
                         break
-                
+
                 if remove_idx is not None:
                     # Remove the point
                     self.click_coords.pop(remove_idx)
                 else:
                     # Add new point
                     self.click_coords.append((img_x, img_y, 1))
-                
+
                 # Run SAM prediction with all points
                 if self.click_coords:
                     points = [[x, y] for x, y, _ in self.click_coords]
@@ -103,7 +103,7 @@ class MouseEventListener(QWidget):
                     self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
                 else:
                     self.masks = []
-                
+
                 self.update()
 
     def mouseReleaseEvent(self, event):
