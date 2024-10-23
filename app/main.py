@@ -280,7 +280,7 @@ class MouseEventListener(QWidget):
         point, width, height = self._convert_for_segmentation(event)
         if not ((0 <= point.x < width) and (0 <= point.y < height)): return
 
-        # check if we clicked on a pre-existing point
+        # check if click is a pre-existing point
         repeat_idx = None
         for idx, (x, y) in enumerate(self.seg_points):
             if abs(x - point.x) <= SEG_POINT_RADIUS and abs(y - point.y) <= SEG_POINT_RADIUS:
@@ -298,7 +298,7 @@ class MouseEventListener(QWidget):
             with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                 sam2.set_image(self.frame)
                 masks, _, _ = sam2.predict([point], [1])
-            print(f"{len(masks)} masks for {point}")
+            print(f"Computed {len(masks)} masks for {point}")
             self.masks.append(Mask(point, masks, 0))
 
         self.update()
