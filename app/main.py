@@ -8,7 +8,7 @@ import numpy as np
 from ultralytics import YOLO, SAM
 
 yolo = YOLO("yolo11n.pt")
-sam = SAM("sam2_t.pt")
+sam = SAM("sam2_s.pt")
 
 SEG_POINT_RADIUS = 10
 
@@ -60,7 +60,7 @@ class MouseEventListener(QWidget):
             self.is_frozen = not self.is_frozen
             self.update()
         elif self.is_frozen and self.frame is not None:
-            self.handle_seg_point(event)
+            self.segment(event)
 
     def mouseReleaseEvent(self, event):
         pass
@@ -172,7 +172,7 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-    def handle_seg_point(self, event):
+    def segment(self, event):
         # Convert click coordinates back to image space
         height, width = self.frame.shape[:2]
         window_width = self.width()
@@ -212,8 +212,10 @@ class MouseEventListener(QWidget):
             # Run SAM prediction with all points
             if self.click_coords:
                 points = [[x, y] for x, y, _ in self.click_coords]
-                labels = [label for _, _, label in self.click_coords]
-                results = sam(self.frame, points=points, labels=labels)
+                # labels = [label for _, _, label in self.click_coords]
+                results = sam(self.frame, points=points)#, labels=labels)
+                print(len(results))
+                print(len(results[0].masks))
                 self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
             else:
                 self.masks = []
