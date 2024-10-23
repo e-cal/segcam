@@ -10,6 +10,8 @@ from ultralytics import YOLO, SAM
 yolo = YOLO("yolo11n.pt")
 sam = SAM("sam2_t.pt")
 
+SEG_POINT_RADIUS = 10
+
 class MouseEventListener(QWidget):
     def __init__(self):
         super().__init__()
@@ -58,53 +60,7 @@ class MouseEventListener(QWidget):
             self.is_frozen = not self.is_frozen
             self.update()
         elif self.is_frozen and self.frame is not None:
-            # Convert click coordinates back to image space
-            height, width = self.frame.shape[:2]
-            window_width = self.width()
-            window_height = self.height()
-            image_aspect = width / height
-            window_aspect = window_width / window_height
-
-            if window_aspect > image_aspect:
-                scaled_width = int(window_height * image_aspect)
-                scaled_height = window_height
-                x_offset = (window_width - scaled_width) // 2
-                y_offset = 0
-            else:
-                scaled_width = window_width
-                scaled_height = int(window_width / image_aspect)
-                x_offset = 0
-                y_offset = (window_height - scaled_height) // 2
-
-            # Convert click to image coordinates
-            img_x = (event.x() - x_offset) * (width / scaled_width)
-            img_y = (event.y() - y_offset) * (height / scaled_height)
-
-            if 0 <= img_x < width and 0 <= img_y < height:
-                # Check if clicking near existing point
-                remove_idx = None
-                for idx, (x, y, _) in enumerate(self.click_coords):
-                    if abs(x - img_x) <= 5 and abs(y - img_y) <= 5:
-                        remove_idx = idx
-                        break
-
-                if remove_idx is not None:
-                    # Remove the point
-                    self.click_coords.pop(remove_idx)
-                else:
-                    # Add new point
-                    self.click_coords.append((img_x, img_y, 1))
-
-                # Run SAM prediction with all points
-                if self.click_coords:
-                    points = [[x, y] for x, y, _ in self.click_coords]
-                    labels = [label for _, _, label in self.click_coords]
-                    results = sam(self.frame, points=points, labels=labels)
-                    self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
-                else:
-                    self.masks = []
-
-                self.update()
+            self.handle_seg_point(event)
 
     def mouseReleaseEvent(self, event):
         pass
@@ -215,6 +171,54 @@ class MouseEventListener(QWidget):
                 r = self.button_radius
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
+
+    def handle_seg_point(self, event):
+        # Convert click coordinates back to image space
+        height, width = self.frame.shape[:2]
+        window_width = self.width()
+        window_height = self.height()
+        image_aspect = width / height
+        window_aspect = window_width / window_height
+
+        if window_aspect > image_aspect:
+            scaled_width = int(window_height * image_aspect)
+            scaled_height = window_height
+            x_offset = (window_width - scaled_width) // 2
+            y_offset = 0
+        else:
+            scaled_width = window_width
+            scaled_height = int(window_width / image_aspect)
+            x_offset = 0
+            y_offset = (window_height - scaled_height) // 2
+
+        # Convert click to image coordinates
+        img_x = (event.x() - x_offset) * (width / scaled_width)
+        img_y = (event.y() - y_offset) * (height / scaled_height)
+
+        if 0 <= img_x < width and 0 <= img_y < height:
+            remove_idx = None
+            for idx, (x, y, _) in enumerate(self.click_coords):
+                if abs(x - img_x) <= SEG_POINT_RADIUS and abs(y - img_y) <= SEG_POINT_RADIUS:
+                    remove_idx = idx
+                    break
+
+            if remove_idx is not None:
+                # Remove the point
+                self.click_coords.pop(remove_idx)
+            else:
+                # Add new point
+                self.click_coords.append((img_x, img_y, 1))
+
+            # Run SAM prediction with all points
+            if self.click_coords:
+                points = [[x, y] for x, y, _ in self.click_coords]
+                labels = [label for _, _, label in self.click_coords]
+                results = sam(self.frame, points=points, labels=labels)
+                self.masks = [mask.cpu().numpy() for mask in results[0].masks.data]
+            else:
+                self.masks = []
+
+            self.update()
 
     def closeEvent(self, event):
         self.camera.release()
