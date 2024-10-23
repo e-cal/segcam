@@ -20,7 +20,7 @@ class MouseEventListener(QWidget):
 
         # Define circle properties
         self.circle_radius = 50
-        self.circle_center = (400, 550)  # Bottom middle of the 800x600 window
+        self.circle_center = None  # Will be calculated during paint
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
@@ -74,12 +74,16 @@ class MouseEventListener(QWidget):
                                                         Qt.KeepAspectRatio,
                                                         Qt.SmoothTransformation))
 
+            # Calculate circle position at bottom center of camera image
+            self.circle_center = (x_offset + scaled_width // 2,
+                                y_offset + scaled_height - self.circle_radius - 10)  # 10px padding from bottom
+            
             # Draw white circle
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
             qp.setBrush(QColor(255, 255, 255, 128))  # Semi-transparent white
-            qp.drawEllipse(self.circle_center[0] - self.circle_radius, 
-                           self.circle_center[1] - self.circle_radius, 
-                           self.circle_radius * 2, self.circle_radius * 2)
+            qp.drawEllipse(self.circle_center[0] - self.circle_radius,
+                          self.circle_center[1] - self.circle_radius,
+                          self.circle_radius * 2, self.circle_radius * 2)
 
     def closeEvent(self, event):
         self.capture.release()
