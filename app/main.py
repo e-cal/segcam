@@ -4,9 +4,13 @@ from PyQt5.QtCore import Qt, QTimer, QRect
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 import cv2
 import math
+import numpy as np
 from ultralytics import YOLO
+from mobile_sam import sam_model_registry, SamPredictor
 
 model = YOLO("yolo11n.pt")
+sam_model = sam_model_registry["mobile_sam"](checkpoint="mobile_sam.pt")
+predictor = SamPredictor(sam_model)
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -27,6 +31,8 @@ class MouseEventListener(QWidget):
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
+        self.mask = None
+        self.click_coords = None
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
@@ -53,6 +59,42 @@ class MouseEventListener(QWidget):
             if not self.is_frozen: self.capture()
             self.is_frozen = not self.is_frozen
             self.update()
+        elif self.is_frozen and self.frame is not None:
+            # Convert click coordinates back to image space
+            height, width = self.frame.shape[:2]
+            window_width = self.width()
+            window_height = self.height()
+            image_aspect = width / height
+            window_aspect = window_width / window_height
+            
+            if window_aspect > image_aspect:
+                scaled_width = int(window_height * image_aspect)
+                scaled_height = window_height
+                x_offset = (window_width - scaled_width) // 2
+                y_offset = 0
+            else:
+                scaled_width = window_width
+                scaled_height = int(window_width / image_aspect)
+                x_offset = 0
+                y_offset = (window_height - scaled_height) // 2
+            
+            # Convert click to image coordinates
+            img_x = (event.x() - x_offset) * (width / scaled_width)
+            img_y = (event.y() - y_offset) * (height / scaled_height)
+            
+            if 0 <= img_x < width and 0 <= img_y < height:
+                self.click_coords = (img_x, img_y)
+                # Run SAM prediction
+                predictor.set_image(self.frame)
+                input_point = np.array([[img_x, img_y]])
+                input_label = np.array([1])
+                masks, _, _ = predictor.predict(
+                    point_coords=input_point,
+                    point_labels=input_label,
+                    multimask_output=False,
+                )
+                self.mask = masks[0]
+                self.update()
 
     def mouseReleaseEvent(self, event):
         pass
@@ -87,6 +129,26 @@ class MouseEventListener(QWidget):
                 QRect(x_offset, y_offset, scaled_width, scaled_height),
                 QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
+
+            # Draw segmentation mask if available
+            if self.is_frozen and self.mask is not None:
+                mask_image = self.mask.astype(np.uint8) * 255
+                mask_image = cv2.resize(mask_image, (width, height))
+                mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
+                mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
+                
+                mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
+                qp.drawPixmap(
+                    QRect(x_offset, y_offset, scaled_width, scaled_height),
+                    QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+                
+                # Draw click point if available
+                if self.click_coords is not None:
+                    click_x = int(self.click_coords[0] * scale_x) + x_offset
+                    click_y = int(self.click_coords[1] * scale_y) + y_offset
+                    qp.setPen(QPen(QColor(255, 0, 0), 4))
+                    qp.drawPoint(click_x, click_y)
 
             # Draw detection boxes and labels if frozen
             if self.is_frozen and self.detections is not None:
