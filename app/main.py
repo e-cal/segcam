@@ -23,6 +23,15 @@ SEG_POINT_RADIUS = 10
 
 Point = namedtuple("Point", ["x", "y"])
 
+@dataclass
+class WindowScaling:
+    scaled_width: int
+    scaled_height: int 
+    x_offset: int
+    y_offset: int
+    scale_x: float
+    scale_y: float
+
 class MaskColor(Enum):
     GREEN = (0, 128, 0)
     BLUE = (0, 0, 255)
@@ -145,38 +154,17 @@ class MouseEventListener(QWidget):
             )
 
             # Draw segmentation mask if available
-            if self.is_frozen and self.masks: self.draw_masks()
+            if self.is_frozen and self.masks:
+                self.draw_masks(qp, height, width)
 
             # Draw detection boxes and labels if frozen
-            if self.is_frozen and self.detections is not None:
-                # Scale factor for coordinates
-                scale_x = scaled_width / width
-                scale_y = scaled_height / height
-
-                for detection in self.detections:
-                    x1, y1, x2, y2, conf, cls = detection
-
-                    # Scale coordinates
-                    x1 = int(x1.item() * scale_x) + x_offset
-                    y1 = int(y1.item() * scale_y) + y_offset
-                    x2 = int(x2.item() * scale_x) + x_offset
-                    y2 = int(y2.item() * scale_y) + y_offset
-
-                    # Draw box
-                    qp.setPen(QPen(QColor(255, 0, 0), 2))
-                    qp.drawRect(x1, y1, x2 - x1, y2 - y1)
-
-                    # Draw label
-                    class_name = yolo.names[int(cls.item())]
-                    confidence = f"{conf.item():.2f}"
-                    label = f"{class_name} {confidence}"
-
-                    qp.setPen(QPen(QColor(255, 0, 0)))
-                    qp.drawText(x1, y1 - 5, label)
+            if self.is_frozen:
+                self.draw_detections(qp)
 
             # Calculate button position at bottom center of camera image
             self.button_center = (x_offset + scaled_width // 2, y_offset + scaled_height - self.button_radius - 10)
 
+            # Draw freeze/unfreeze button
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
             if not self.is_frozen:
                 # Draw circle
@@ -196,7 +184,10 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
 
-    def draw_masks(self):
+    def draw_masks(self, qp, height, width):
+        if not self.masks:
+            return
+            
         # Combine all masks
         combined_mask = np.zeros_like(self.masks[0].active_mask)
         for mask in self.masks:
@@ -208,16 +199,39 @@ class MouseEventListener(QWidget):
 
         mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
         qp.drawPixmap(
-            QRect(x_offset, y_offset, scaled_width, scaled_height),
-            QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            QRect(self.scaling.x_offset, self.scaling.y_offset, self.scaling.scaled_width, self.scaling.scaled_height),
+            QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
 
         # Draw all segmentation points
         for x, y in [mask.point for mask in self.masks]:
-            _x = int(x * scale_x) + x_offset
-            _y = int(y * scale_y) + y_offset
+            _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
+            _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
             qp.setPen(QPen(QColor(255, 0, 0), 4))
             qp.drawPoint(_x, _y)
+
+    def draw_detections(self, qp):
+        if not self.detections is not None:
+            return
+            
+        qp.setPen(QPen(QColor(255, 0, 0), 2))
+        for detection in self.detections:
+            x1, y1, x2, y2, conf, cls = detection
+
+            # Scale coordinates
+            x1 = int(x1.item() * self.scaling.scale_x) + self.scaling.x_offset
+            y1 = int(y1.item() * self.scaling.scale_y) + self.scaling.y_offset
+            x2 = int(x2.item() * self.scaling.scale_x) + self.scaling.x_offset
+            y2 = int(y2.item() * self.scaling.scale_y) + self.scaling.y_offset
+
+            # Draw box
+            qp.drawRect(x1, y1, x2 - x1, y2 - y1)
+
+            # Draw label
+            class_name = yolo.names[int(cls.item())]
+            confidence = f"{conf.item():.2f}"
+            label = f"{class_name} {confidence}"
+            qp.drawText(x1, y1 - 5, label)
 
     def _convert_for_segmentation(self, event):
         # Convert click coordinates back to image space
