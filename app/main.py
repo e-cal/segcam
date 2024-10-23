@@ -74,8 +74,9 @@ class MouseEventListener(QWidget):
         self.timer.start(50)
 
         # UI properties
-        self.button_radius = 50
-        self.button_center = None
+        self.button_radius = 40
+        self.freeze_button_center = None
+        self.clear_button_center = None
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
@@ -91,16 +92,22 @@ class MouseEventListener(QWidget):
         self.show()
 
     def mousePressEvent(self, event):
-        if self.is_button_press(event.x(), event.y()):
+        if self.is_freeze_button_press(event.x(), event.y()):
             if not self.is_frozen: self.freeze()
             self.is_frozen = not self.is_frozen
             self.update()
         elif self.is_frozen and self.frame is not None:
             self.segment(event)
 
-    def is_button_press(self, x, y):
-        assert self.button_center is not None
-        distance = math.sqrt((x - self.button_center[0])**2 + (y - self.button_center[1])**2)
+    def is_freeze_button_press(self, x, y):
+        assert self.freeze_button_center is not None
+        distance = math.sqrt((x - self.freeze_button_center[0])**2 + (y - self.freeze_button_center[1])**2)
+        return distance <= self.button_radius
+
+    def is_clear_button_press(self, x, y):
+        if not self.is_frozen: return False
+        assert self.clear_button_center is not None
+        distance = math.sqrt((x - self.clear_button_center[0])**2 + (y - self.clear_button_center[1])**2)
         return distance <= self.button_radius
 
     def update_img(self):
@@ -159,8 +166,10 @@ class MouseEventListener(QWidget):
             if self.is_frozen:
                 self.draw_detections(qp)
 
-            # Calculate button position at bottom center of camera image
-            self.button_center = (x_offset + scaled_width // 2, y_offset + scaled_height - self.button_radius - 10)
+            # Calculate button positions at bottom of camera image
+            button_y = y_offset + scaled_height - self.button_radius - 10
+            self.freeze_button_center = (x_offset + scaled_width // 2 - self.button_radius - 10, button_y)
+            self.clear_button_center = (x_offset + scaled_width // 2 + self.button_radius + 10, button_y)
 
             # Draw freeze/unfreeze button
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
@@ -168,18 +177,25 @@ class MouseEventListener(QWidget):
                 # Draw circle
                 qp.setBrush(QColor(255, 255, 255, 128))
                 qp.drawEllipse(
-                    self.button_center[0] - self.button_radius,
-                    self.button_center[1] - self.button_radius,
+                    self.freeze_button_center[0] - self.button_radius,
+                    self.freeze_button_center[1] - self.button_radius,
                     self.button_radius * 2,
                     self.button_radius * 2,
                 )
             else:
                 # Draw X
                 qp.setBrush(Qt.NoBrush)
-                x, y = self.button_center
+                x, y = self.freeze_button_center
                 r = self.button_radius
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
+
+                # Draw clear button (trash can icon)
+                x, y = self.clear_button_center
+                r = self.button_radius
+                qp.setBrush(QColor(255, 255, 255, 128))
+                qp.drawRect(x - r//2, y - r//2, r, r)  # body
+                qp.drawRect(x - r, y - r, 2*r, r//2)   # lid
 
     def draw_masks(self, qp, height, width):
         if not self.masks: return
