@@ -130,6 +130,10 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
+            # Calculate scale factors
+            scale_x = scaled_width / width
+            scale_y = scaled_height / height
+
             # Draw segmentation mask if available
             if self.is_frozen and self.mask is not None:
                 mask_image = self.mask.astype(np.uint8) * 255
