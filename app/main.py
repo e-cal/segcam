@@ -266,7 +266,8 @@ class MouseEventListener(QWidget):
         if repeat_idx is not None:  # cycle mask
             mask = self.masks[repeat_idx]
             if mask.active < len(mask.masks) - 1:
-                pass
+                mask.active += 1
+                mask.color = MaskColor.get_next_color(mask.color)
             else:
                 self.masks.pop(repeat_idx)
         else:  # new mask
