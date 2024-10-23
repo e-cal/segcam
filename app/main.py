@@ -76,7 +76,7 @@ class MouseEventListener(QWidget):
         # UI properties
         self.button_radius = 40
         self.freeze_button_center = None
-        self.clear_button_center = None
+        self.clear_button_rect = None
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
@@ -108,10 +108,9 @@ class MouseEventListener(QWidget):
         return distance <= self.button_radius
 
     def is_clear_button_press(self, x, y):
-        if not self.is_frozen: return False
-        assert self.clear_button_center is not None
-        distance = math.sqrt((x - self.clear_button_center[0])**2 + (y - self.clear_button_center[1])**2)
-        return distance <= self.button_radius
+        if not self.is_frozen or self.clear_button_rect is None:
+            return False
+        return self.clear_button_rect.contains(x, y)
 
     def update_img(self):
         if not self.is_frozen:
@@ -169,10 +168,22 @@ class MouseEventListener(QWidget):
             if self.is_frozen:
                 self.draw_detections(qp)
 
-            # Calculate button positions at bottom of camera image
+            # Calculate and draw buttons
             button_y = y_offset + scaled_height - self.button_radius - 10
-            self.freeze_button_center = (x_offset + scaled_width // 2 - self.button_radius - 10, button_y)
-            self.clear_button_center = (x_offset + scaled_width // 2 + self.button_radius + 10, button_y)
+            self.freeze_button_center = (x_offset + scaled_width // 2, button_y)
+            
+            # Draw clear button if frozen
+            if self.is_frozen:
+                clear_width = 60
+                clear_height = 30
+                clear_x = x_offset + scaled_width - clear_width - 10
+                clear_y = y_offset + scaled_height - clear_height - 10
+                self.clear_button_rect = QRect(clear_x, clear_y, clear_width, clear_height)
+                
+                qp.setPen(QPen(QColor(255, 255, 255), 2))
+                qp.setBrush(QColor(128, 128, 128, 180))
+                qp.drawRect(self.clear_button_rect)
+                qp.drawText(self.clear_button_rect, Qt.AlignCenter, "Clear")
 
             # Draw freeze/unfreeze button
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
