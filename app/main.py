@@ -49,8 +49,30 @@ class MouseEventListener(QWidget):
             height, width, channel = image.shape
             bytes_per_line = 3 * width
             qimage = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            # Calculate scaling to maintain aspect ratio
+            window_width = self.width()
+            window_height = self.height()
+            image_aspect = width / height
+            window_aspect = window_width / window_height
+            
+            if window_aspect > image_aspect:
+                # Window is wider than image
+                scaled_width = int(window_height * image_aspect)
+                scaled_height = window_height
+                x_offset = (window_width - scaled_width) // 2
+                y_offset = 0
+            else:
+                # Window is taller than image
+                scaled_width = window_width
+                scaled_height = int(window_width / image_aspect)
+                x_offset = 0
+                y_offset = (window_height - scaled_height) // 2
+            
             qp = QPainter(self)
-            qp.drawPixmap(QRect(0, 0, 800, 600), QPixmap.fromImage(qimage).scaled(800, 600))
+            qp.drawPixmap(QRect(x_offset, y_offset, scaled_width, scaled_height), 
+                         QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height,
+                                                        Qt.KeepAspectRatio,
+                                                        Qt.SmoothTransformation))
 
             # Draw white circle
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
