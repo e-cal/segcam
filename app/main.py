@@ -1,4 +1,7 @@
+from collections import namedtuple
+from enum import Enum
 import sys
+from typing import Literal, NamedTuple
 from PyQt5.QtWidgets import QWidget, QApplication
 from PyQt5.QtCore import Qt, QTimer, QRect
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
@@ -7,14 +10,48 @@ import math
 import numpy as np
 from ultralytics import YOLO, SAM
 import torch
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
+from sam2.build_sam import build_sam2  # type: ignore
+from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore
+from dataclasses import dataclass
 
 yolo = YOLO("yolo11n.pt")
 # sam = SAM("sam2_s.pt")
 sam2 = SAM2ImagePredictor(build_sam2("configs/sam2.1/sam2.1_hiera_s.yaml", "checkpoints/sam2.1_hiera_small.pt"))
 
+
 SEG_POINT_RADIUS = 10
+
+Point = namedtuple("Point", ["x", "y"])
+
+class MaskColor(Enum):
+    GREEN = (0, 128, 0)
+    BLUE = (0, 0, 255)
+    PINK = (238, 84, 144)
+
+    @classmethod
+    def get_next_color(cls, color):
+        colors = list(cls)
+        if color not in colors:
+            raise ValueError("Invalid color")
+        index = colors.index(color)
+        return colors[(index + 1) % len(colors)]
+
+    @property
+    def rgb(self):
+        return self.value
+
+@dataclass
+class Mask:
+    point: Point # click coordinates
+    masks: np.ndarray # computed masks for the current point
+    active: int # index of the active mask
+    label: Literal[0, 1] = 1 # background (0) or foreground (1)
+    color: MaskColor = MaskColor.GREEN
+
+    @property
+    def active_mask(self):
+        return self.masks[self.active]
+
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -26,7 +63,7 @@ class MouseEventListener(QWidget):
         self.frame = None
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.display_feed)
+        self.timer.timeout.connect(self.update_img)
         self.timer.start(50)
 
         # UI properties
@@ -35,62 +72,69 @@ class MouseEventListener(QWidget):
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
-        self.masks = []  # List to store multiple masks
-        self.click_coords = []  # List of (x,y,label) tuples
+        self.masks: list[Mask] = []
+
+    @property
+    def seg_points(self):
+        return [mask.point for mask in self.masks]
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
-        self.setWindowTitle('Mouse Event Listener')
+        self.setWindowTitle('SegCam')
         self.show()
 
-    def display_feed(self):
-        if not self.is_frozen:
-            ret, self.frame = self.camera.read()
+    def mousePressEvent(self, event):
+        if self.is_button_press(event.x(), event.y()):
+            if not self.is_frozen: self.freeze()
+            self.is_frozen = not self.is_frozen
             self.update()
-
-    def capture(self):
-        self.display_feed()
-        if self.frame is not None:
-            self.detections = yolo(self.frame)[0].boxes.data
+        elif self.is_frozen and self.frame is not None:
+            self.segment(event)
 
     def is_button_press(self, x, y):
         assert self.button_center is not None
         distance = math.sqrt((x - self.button_center[0])**2 + (y - self.button_center[1])**2)
         return distance <= self.button_radius
 
-    def mousePressEvent(self, event):
-        if self.is_button_press(event.x(), event.y()):
-            if not self.is_frozen: self.capture()
-            self.is_frozen = not self.is_frozen
+    def update_img(self):
+        if not self.is_frozen:
+            ret, self.frame = self.camera.read()
             self.update()
-        elif self.is_frozen and self.frame is not None:
-            self.segment(event)
 
-    def mouseReleaseEvent(self, event):
-        pass
+    def freeze(self):
+        self.update_img()
+        if self.frame is not None:
+            self.detections = yolo(self.frame)[0].boxes.data
+
+    def _get_img_scaling(self, image):
+        # Calculate scaling to maintain aspect ratio
+        window_width = self.width()
+        window_height = self.height()
+        height, width, channel = image.shape
+        image_aspect = width / height
+        window_aspect = window_width / window_height
+        if window_aspect > image_aspect:
+            # Window is wider than image
+            scaled_width = int(window_height * image_aspect)
+            scaled_height = window_height
+            x_offset = (window_width - scaled_width) // 2
+            y_offset = 0
+        else:
+            # Window is taller than image
+            scaled_width = window_width
+            scaled_height = int(window_width / image_aspect)
+            x_offset = 0
+            y_offset = (window_height - scaled_height) // 2
+
+        return scaled_width, scaled_height, x_offset, y_offset, scaled_width / width, scaled_height / height
 
     def paintEvent(self, event):
         if self.frame is not None:
+            # Get the current camera frame
             image = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
             height, width, channel = image.shape
-
-            # Calculate scaling to maintain aspect ratio
-            window_width = self.width()
-            window_height = self.height()
-            image_aspect = width / height
-            window_aspect = window_width / window_height
-            if window_aspect > image_aspect:
-                # Window is wider than image
-                scaled_width = int(window_height * image_aspect)
-                scaled_height = window_height
-                x_offset = (window_width - scaled_width) // 2
-                y_offset = 0
-            else:
-                # Window is taller than image
-                scaled_width = window_width
-                scaled_height = int(window_width / image_aspect)
-                x_offset = 0
-                y_offset = (window_height - scaled_height) // 2
+            scaled_width, scaled_height, x_offset, y_offset, scale_x, scale_y = self._get_img_scaling(image)
+            self.scaling = WindowScaling(scaled_width, scaled_height, x_offset, y_offset, scale_x, scale_y)
 
             # Draw camera image
             qimage = QImage(image.data, width, height, 3 * width, QImage.Format_RGB888)
@@ -100,33 +144,8 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
-            # Calculate scale factors
-            scale_x = scaled_width / width
-            scale_y = scaled_height / height
-
             # Draw segmentation mask if available
-            if self.is_frozen and self.masks:
-                # Combine all masks
-                combined_mask = np.zeros_like(self.masks[0])
-                for mask in self.masks:
-                    combined_mask = np.logical_or(combined_mask, mask)
-                mask_image = combined_mask.astype(np.uint8) * 255
-                mask_image = cv2.resize(mask_image, (width, height))
-                mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
-                mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
-
-                mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
-                qp.drawPixmap(
-                    QRect(x_offset, y_offset, scaled_width, scaled_height),
-                    QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
-
-                # Draw all click points
-                for x, y, _ in self.click_coords:
-                    click_x = int(x * scale_x) + x_offset
-                    click_y = int(y * scale_y) + y_offset
-                    qp.setPen(QPen(QColor(255, 0, 0), 4))
-                    qp.drawPoint(click_x, click_y)
+            if self.is_frozen and self.masks: self.draw_masks()
 
             # Draw detection boxes and labels if frozen
             if self.is_frozen and self.detections is not None:
@@ -176,14 +195,38 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-    def segment(self, event):
+
+    def draw_masks(self):
+        # Combine all masks
+        combined_mask = np.zeros_like(self.masks[0].active_mask)
+        for mask in self.masks:
+            combined_mask = np.logical_or(combined_mask, mask.active_mask)
+        mask_image = combined_mask.astype(np.uint8) * 255
+        mask_image = cv2.resize(mask_image, (width, height))
+        mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
+        mask_colored[mask_image > 0] = [0, 255, 0, 128]  # Semi-transparent green
+
+        mask_qimage = QImage(mask_colored.data, width, height, 4 * width, QImage.Format_RGBA8888)
+        qp.drawPixmap(
+            QRect(x_offset, y_offset, scaled_width, scaled_height),
+            QPixmap.fromImage(mask_qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+
+        # Draw all segmentation points
+        for x, y in [mask.point for mask in self.masks]:
+            _x = int(x * scale_x) + x_offset
+            _y = int(y * scale_y) + y_offset
+            qp.setPen(QPen(QColor(255, 0, 0), 4))
+            qp.drawPoint(_x, _y)
+
+    def _convert_for_segmentation(self, event):
         # Convert click coordinates back to image space
+        assert self.frame is not None
         height, width = self.frame.shape[:2]
         window_width = self.width()
         window_height = self.height()
         image_aspect = width / height
         window_aspect = window_width / window_height
-
         if window_aspect > image_aspect:
             scaled_width = int(window_height * image_aspect)
             scaled_height = window_height
@@ -198,34 +241,38 @@ class MouseEventListener(QWidget):
         # Convert click to image coordinates
         img_x = (event.x() - x_offset) * (width / scaled_width)
         img_y = (event.y() - y_offset) * (height / scaled_height)
+        point = Point(img_x, img_y)
 
-        if 0 <= img_x < width and 0 <= img_y < height:
-            remove_idx = None
-            for idx, (x, y, _) in enumerate(self.click_coords):
-                if abs(x - img_x) <= SEG_POINT_RADIUS and abs(y - img_y) <= SEG_POINT_RADIUS:
-                    remove_idx = idx
-                    break
+        return point, width, height
 
-            if remove_idx is not None: # Remove point
-                self.click_coords.pop(remove_idx)
-                if remove_idx < len(self.masks):
-                    self.masks.pop(remove_idx)
-            else: # compute new mask for the added point
-                self.click_coords.append((img_x, img_y, 1))
-                point = [[img_x, img_y]]
-                #results = sam(self.frame, points=point)
-                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-                    sam2.set_image(self.frame)
-                    masks, _, _ = sam2.predict(point, [1])
-                print(len(masks))
-                # print(len(results))
-                # print(len(results[0].masks))
-                # print(len(results[0].masks.data))
-                # new_mask = results[0].masks.data[0].cpu().numpy()
-                new_mask = masks[0]
-                self.masks.append(new_mask)
+    def segment(self, event):
+        point, width, height = self._convert_for_segmentation(event)
+        if not ((0 <= point.x < width) and (0 <= point.y < height)): return
 
-            self.update()
+        # check if we clicked on a pre-existing point
+        repeat_idx = None
+        for idx, (x, y) in enumerate(self.seg_points):
+            if abs(x - point.x) <= SEG_POINT_RADIUS and abs(y - point.y) <= SEG_POINT_RADIUS:
+                repeat_idx = idx
+                break
+
+        if repeat_idx is not None: # cycle mask
+            mask = self.masks[repeat_idx]
+            if mask.active < len(mask.masks) - 1:
+                pass
+            else:
+                self.masks.pop(repeat_idx)
+        else: # new mask
+            with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                sam2.set_image(self.frame)
+                masks, _, _ = sam2.predict([point], [1])
+            print(f"{len(masks)} masks for {point}")
+            self.masks.append(Mask(point, masks, 0))
+
+        self.update()
+
+
+
 
     def closeEvent(self, event):
         self.camera.release()
