@@ -165,7 +165,7 @@ class MouseEventListener(QWidget):
                     qp.drawRect(x1, y1, x2-x1, y2-y1)
                     
                     # Draw label
-                    class_name = model.names[int(cls.item())]
+                    class_name = yolo_model.names[int(cls.item())]
                     confidence = f"{conf.item():.2f}"
                     label = f"{class_name} {confidence}"
                     
