@@ -6,11 +6,14 @@ import cv2
 import math
 import numpy as np
 from ultralytics import YOLO
-from 
+import torch
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 model = YOLO("yolo11n.pt")
-sam_model = sam_model_registry["mobile_sam"](checkpoint="mobile_sam.pt")
-predictor = SamPredictor(sam_model)
+checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
+model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -84,15 +87,13 @@ class MouseEventListener(QWidget):
             
             if 0 <= img_x < width and 0 <= img_y < height:
                 self.click_coords = (img_x, img_y)
-                # Run SAM prediction
-                predictor.set_image(self.frame)
-                input_point = np.array([[img_x, img_y]])
-                input_label = np.array([1])
-                masks, _, _ = predictor.predict(
-                    point_coords=input_point,
-                    point_labels=input_label,
-                    multimask_output=False,
-                )
+                # Run SAM2 prediction
+                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                    predictor.set_image(self.frame)
+                    masks, _, _ = predictor.predict(
+                        point_coords=np.array([[img_x, img_y]]),
+                        point_labels=np.array([1])
+                    )
                 self.mask = masks[0]
                 self.update()
 
