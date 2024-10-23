@@ -204,12 +204,6 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-                # Draw clear button (trash can icon)
-                x, y = self.clear_button_center
-                r = self.button_radius
-                qp.setBrush(QColor(255, 255, 255, 128))
-                qp.drawRect(x - r//2, y - r//2, r, r)  # body
-                qp.drawRect(x - r, y - r, 2*r, r//2)   # lid
 
     def draw_masks(self, qp, height, width):
         if not self.masks: return
