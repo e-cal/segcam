@@ -26,6 +26,7 @@ class MouseEventListener(QWidget):
         self.button_center = None
         self.is_frozen = False
         self.frozen_frame = None
+        self.detections = None
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
@@ -39,7 +40,8 @@ class MouseEventListener(QWidget):
 
     def capture(self):
         self.display_feed()
-        print(self.frame)
+        if self.frame is not None:
+            self.detections = model(self.frame)[0]
 
     def is_button_press(self, x, y):
         assert self.button_center is not None
@@ -85,6 +87,33 @@ class MouseEventListener(QWidget):
                 QRect(x_offset, y_offset, scaled_width, scaled_height),
                 QPixmap.fromImage(qimage).scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
+
+            # Draw detection boxes and labels if frozen
+            if self.is_frozen and self.detections is not None:
+                # Scale factor for coordinates
+                scale_x = scaled_width / width
+                scale_y = scaled_height / height
+                
+                for detection in self.detections.boxes.data:
+                    x1, y1, x2, y2, conf, cls = detection
+                    
+                    # Scale coordinates
+                    x1 = int(x1.item() * scale_x) + x_offset
+                    y1 = int(y1.item() * scale_y) + y_offset
+                    x2 = int(x2.item() * scale_x) + x_offset
+                    y2 = int(y2.item() * scale_y) + y_offset
+                    
+                    # Draw box
+                    qp.setPen(QPen(QColor(255, 0, 0), 2))
+                    qp.drawRect(x1, y1, x2-x1, y2-y1)
+                    
+                    # Draw label
+                    class_name = model.names[int(cls.item())]
+                    confidence = f"{conf.item():.2f}"
+                    label = f"{class_name} {confidence}"
+                    
+                    qp.setPen(QPen(QColor(255, 0, 0)))
+                    qp.drawText(x1, y1-5, label)
 
             # Calculate button position at bottom center of camera image
             self.button_center = (x_offset + scaled_width // 2, y_offset + scaled_height - self.button_radius - 10)
