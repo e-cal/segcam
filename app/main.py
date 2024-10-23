@@ -6,9 +6,13 @@ import cv2
 import math
 import numpy as np
 from ultralytics import YOLO, SAM
+import torch
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 yolo = YOLO("yolo11n.pt")
-sam = SAM("sam2_s.pt")
+# sam = SAM("sam2_s.pt")
+sam2 = SAM2ImagePredictor(build_sam2("configs/sam2.1/sam2.1_hiera_s.yaml", "checkpoints/sam2.1_hiera_small.pt"))
 
 SEG_POINT_RADIUS = 10
 
@@ -202,22 +206,23 @@ class MouseEventListener(QWidget):
                     remove_idx = idx
                     break
 
-            if remove_idx is not None:
-                # Remove the point
+            if remove_idx is not None: # Remove point
                 self.click_coords.pop(remove_idx)
-            else:
-                # Add new point
-                self.click_coords.append((img_x, img_y, 1))
-
-            if remove_idx is not None:
-                # Remove the mask along with the point
                 if remove_idx < len(self.masks):
                     self.masks.pop(remove_idx)
-            else:
-                # Only compute new mask for the added point
+            else: # compute new mask for the added point
+                self.click_coords.append((img_x, img_y, 1))
                 point = [[img_x, img_y]]
-                results = sam(self.frame, points=point)
-                new_mask = results[0].masks.data[0].cpu().numpy()
+                #results = sam(self.frame, points=point)
+                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                    sam2.set_image(self.frame)
+                    masks, _, _ = sam2.predict(point, [1])
+                print(len(masks))
+                # print(len(results))
+                # print(len(results[0].masks))
+                # print(len(results[0].masks.data))
+                # new_mask = results[0].masks.data[0].cpu().numpy()
+                new_mask = masks[0]
                 self.masks.append(new_mask)
 
             self.update()
