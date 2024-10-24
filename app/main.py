@@ -144,10 +144,9 @@ class MouseEventListener(QWidget):
                 if is_delete:
                     # Delete the mask and update names/indices
                     self.masks.pop(mask_clicked)
-                    # Update mask names
+                    # Update mask names only
                     for i, mask in enumerate(self.masks):
                         mask.name = f"Mask {i + 1}"
-                        mask.color = list(MaskColor)[i % len(MaskColor)]
                     # Update selected index
                     if self.selected_mask_index is not None:
                         if self.selected_mask_index == mask_clicked:
