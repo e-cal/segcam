@@ -35,6 +35,8 @@ class MaskColor(Enum):
     BLUE = (100, 150, 255)
     PINK = (233, 30, 99)
     YELLOW = (252, 190, 73)
+    GREEN = (76, 175, 80)
+    PURPLE = (156, 39, 176)
 
     @classmethod
     def get_next_color(cls, color):
