@@ -429,7 +429,8 @@ class MouseEventListener(QWidget):
 
         # Add new point to active mask
         self.active_mask.points.append(point)
-        self.active_mask.labels.append(1)  # Default to foreground
+        # Right click adds background point (0), left click adds foreground point (1)
+        self.active_mask.labels.append(1 if event.button() == Qt.LeftButton else 0)
 
         # Compute new masks with all points
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
