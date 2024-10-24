@@ -201,7 +201,7 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-    def draw_masks(self, qp, height, width):
+    def draw_masks(self):
         if not self.masks: return
 
         # Draw each mask with its color
