@@ -139,10 +139,22 @@ class MouseEventListener(QWidget):
                 return
 
             # Check if click is on mask selection buttons
-            mask_clicked = self.get_clicked_mask_button(event.x(), event.y())
+            mask_clicked, is_delete = self.get_clicked_mask_button(event.x(), event.y())
             if mask_clicked is not None:
-                if mask_clicked == len(self.masks):  # "Add Mask" button
-                    mask_index = len(self.masks) 
+                if is_delete:
+                    # Delete the mask and update names/indices
+                    self.masks.pop(mask_clicked)
+                    # Update mask names
+                    for i, mask in enumerate(self.masks):
+                        mask.name = f"Mask {i + 1}"
+                        mask.color = list(MaskColor)[i % len(MaskColor)]
+                    # Update selected index
+                    if self.selected_mask_index == mask_clicked:
+                        self.selected_mask_index = None
+                    elif self.selected_mask_index > mask_clicked:
+                        self.selected_mask_index -= 1
+                elif mask_clicked == len(self.masks):  # "Add Mask" button
+                    mask_index = len(self.masks)
                     new_mask = Mask(f"Mask {mask_index + 1}")
                     # Set color based on mask index
                     colors = list(MaskColor)
@@ -276,8 +288,8 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-    def get_clicked_mask_button(self, x: int, y: int) -> int | None:
-        """Returns index of clicked mask button, or None if no button clicked"""
+    def get_clicked_mask_button(self, x: int, y: int) -> tuple[int | None, bool]:
+        """Returns (mask_index, is_delete_button) or (None, False) if no button clicked"""
         window_height = self.height()
         total_height = (len(self.masks) + 1) * (self.mask_button_height + self.mask_button_spacing)
         start_y = (window_height - total_height) // 2
@@ -288,10 +300,15 @@ class MouseEventListener(QWidget):
             # Check main mask button
             if (0 <= x <= self.mask_button_width and 
                 button_y <= y <= button_y + self.mask_button_height):
-                return i
+                
+                # Check if X button was clicked (for existing masks only)
+                if i < len(self.masks):
+                    x_button_x = self.mask_button_width - 20
+                    if x_button_x <= x <= self.mask_button_width and button_y <= y <= button_y + 20:
+                        return i, True
+                return i, False
             
-            
-        return None
+        return None, False
 
     def draw_mask_buttons(self, qp: QPainter):
         """Draw mask selection buttons on the left side"""
@@ -309,6 +326,12 @@ class MouseEventListener(QWidget):
             qp.setPen(QPen(QColor(255, 255, 255), 2))
             qp.drawRect(button_rect)
             qp.drawText(button_rect, Qt.AlignCenter, mask.name)
+
+            # Draw X button
+            x_button_x = self.mask_button_width - 20
+            qp.setPen(QPen(QColor(255, 100, 100), 2))
+            qp.drawLine(x_button_x, button_y + 5, x_button_x + 10, button_y + 15)
+            qp.drawLine(x_button_x, button_y + 15, x_button_x + 10, button_y + 5)
 
         # Draw "Add Mask" button
         add_button_y = start_y + len(self.masks) * (self.mask_button_height + self.mask_button_spacing)
