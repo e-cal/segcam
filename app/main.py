@@ -281,19 +281,7 @@ class MouseEventListener(QWidget):
                 button_y <= y <= button_y + self.mask_button_height):
                 return i
             
-            # Check "Next" button for selected mask
-            if (i == self.selected_mask_index and
-                self.mask_button_width + 5 <= x <= self.mask_button_width + 45 and
-                button_y <= y <= button_y + self.mask_button_height):
-                # Cycle through mask variants
-                if self.active_mask and len(self.active_mask.masks) > 0:
-                    if self.active_mask.active < len(self.active_mask.masks) - 1:
-                        self.active_mask.active += 1
-                    else:
-                        self.active_mask.active = 0
-                    self.update()
-                return None
-                
+            
         return None
 
     def draw_mask_buttons(self, qp: QPainter):
@@ -307,21 +295,7 @@ class MouseEventListener(QWidget):
             
             # Main mask button
             button_rect = QRect(0, button_y, self.mask_button_width, self.mask_button_height)
-            if i == self.selected_mask_index:
-                qp.setBrush(QColor(100, 100, 100, 180))
-                # Draw "Next" button
-                next_button_rect = QRect(
-                    self.mask_button_width + 5, 
-                    button_y, 
-                    40, 
-                    self.mask_button_height
-                )
-                qp.setBrush(QColor(60, 60, 60, 180))
-                qp.setPen(QPen(QColor(255, 255, 255), 2))
-                qp.drawRect(next_button_rect)
-                qp.drawText(next_button_rect, Qt.AlignCenter, "Next")
-            else:
-                qp.setBrush(QColor(60, 60, 60, 180))
+            qp.setBrush(QColor(100, 100, 100, 180) if i == self.selected_mask_index else QColor(60, 60, 60, 180))
             
             qp.setPen(QPen(QColor(255, 255, 255), 2))
             qp.drawRect(button_rect)
@@ -469,6 +443,13 @@ class MouseEventListener(QWidget):
         self.active_mask.masks = masks
         self.active_mask.active = 0
         self.update()
+
+    def wheelEvent(self, event):
+        if self.active_mask and len(self.active_mask.masks) > 0:
+            # Scroll up cycles forward, scroll down cycles backward
+            delta = 1 if event.angleDelta().y() > 0 else -1
+            self.active_mask.active = (self.active_mask.active + delta) % len(self.active_mask.masks)
+            self.update()
 
     def closeEvent(self, event):
         self.camera.release()
