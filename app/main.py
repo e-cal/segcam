@@ -101,6 +101,7 @@ class MouseEventListener(QWidget):
             self.update()
         elif self.is_frozen and self.frame is not None:
             if event.button() == Qt.LeftButton: self.segment(event)
+            else: self.toggle_point_label(event)
 
     def is_freeze_button_press(self, x, y):
         assert self.freeze_button_center is not None
@@ -261,6 +262,22 @@ class MouseEventListener(QWidget):
         img_y = (event.y() - scaling.y_offset) / scaling.scale_y
 
         return Point(img_x, img_y), width, height
+
+    def toggle_point_label(self, event):
+        point, width, height = self._window_to_image_coords(event)
+        if not ((0 <= point.x < width) and (0 <= point.y < height)): return
+        for idx, mask in enumerate(self.masks):
+            if abs(mask.point.x - point.x) <= SEG_POINT_RADIUS and abs(mask.point.y - point.y) <= SEG_POINT_RADIUS:
+                # Toggle label
+                new_label = 1 if mask.label == 0 else 0
+                # Recompute masks with new label
+                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                    sam2.set_image(self.frame)
+                    masks, _, _ = sam2.predict([mask.point], [new_label])
+                # Replace the mask
+                self.masks[idx] = Mask(mask.point, masks, 0, label=new_label)
+                self.update()
+                break
 
     def segment(self, event):
         point, width, height = self._window_to_image_coords(event)
