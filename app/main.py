@@ -123,6 +123,12 @@ class MouseEventListener(QWidget):
             self.show_detections = not self.show_detections
             self.update()
         elif self.is_frozen and self.frame is not None:
+            # Check all button areas first
+            if (self.is_freeze_button_press(event.x(), event.y()) or
+                self.is_clear_button_press(event.x(), event.y()) or
+                self.is_show_hide_button_press(event.x(), event.y())):
+                return
+
             # Check if click is on mask selection buttons
             mask_clicked = self.get_clicked_mask_button(event.x(), event.y())
             if mask_clicked is not None:
@@ -135,7 +141,7 @@ class MouseEventListener(QWidget):
                 self.update()
                 return
 
-            # Handle image clicks only if a mask is selected
+            # Handle image clicks only if a mask is selected and not on any buttons
             if self.selected_mask_index is not None:
                 if event.button() == Qt.LeftButton:
                     self.segment(event)
