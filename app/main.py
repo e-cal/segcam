@@ -235,9 +235,11 @@ class MouseEventListener(QWidget):
             )
 
             if self.is_frozen:
-                self.draw_mask_buttons(qp)
+                # Draw masks and detections first (background layer)
                 self.draw_masks(qp, draw_buttons=False)
                 self.draw_detections(qp)
+                # Draw buttons last (foreground layer)
+                self.draw_mask_buttons(qp)
 
 
             # Calculate and draw buttons
