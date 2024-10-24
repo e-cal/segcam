@@ -332,15 +332,16 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
-            # Draw segmentation points
-            for point, label in zip(mask.points, mask.labels):
-                x, y = point
-                _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
-                _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
-                # Green for foreground (1), red for background (0)
-                color = QColor(0, 255, 0) if label == 1 else QColor(255, 0, 0)
-                qp.setPen(QPen(color, 5))
-                qp.drawPoint(_x, _y)
+            # Only draw segmentation points for the selected mask
+            if mask == self.active_mask:
+                for point, label in zip(mask.points, mask.labels):
+                    x, y = point
+                    _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
+                    _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
+                    # Green for foreground (1), red for background (0)
+                    color = QColor(0, 255, 0) if label == 1 else QColor(255, 0, 0)
+                    qp.setPen(QPen(color, 5))
+                    qp.drawPoint(_x, _y)
 
     def draw_detections(self, qp):
         if self.detections is None or not self.show_detections: return
