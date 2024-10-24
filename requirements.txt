@@ -1,0 +1,13 @@
+numpy==1.26.4
+opencv-python==4.10.0.84
+PyQt5==5.15.9
+PyQt5-stubs==5.15.6.0
+PyQt5_sip==12.13.0
+PyQt6==6.7.0
+PyQt6_sip==13.6.0
+qtconsole==5.5.2
+QtPy==2.4.1
+torch==2.5.0
+torchvision==0.20.0
+ultralytics==8.3.20
+ultralytics-thop==2.0.9
