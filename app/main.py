@@ -32,7 +32,7 @@ class WindowScaling:
     scale_y: float
 
 class MaskColor(Enum):
-    GREEN = (0, 255, 132)
+    GREEN = (0, 255, 115)
     BLUE = (33, 150, 243)
     PINK = (233, 30, 99)
 
@@ -127,7 +127,7 @@ class MouseEventListener(QWidget):
         assert self.frame is not None
         height, width = self.frame.shape[:2]
         win_w, win_h = self.width(), self.height()
-        
+
         if (win_w / win_h) > (width / height):
             # Window is wider than image
             scaled_h = win_h
@@ -136,16 +136,12 @@ class MouseEventListener(QWidget):
             offset_y = 0
         else:
             # Window is taller than image
-            scaled_w = win_w 
+            scaled_w = win_w
             scaled_h = int(win_w * height / width)
             offset_x = 0
             offset_y = (win_h - scaled_h) // 2
 
-        return WindowScaling(
-            scaled_w, scaled_h, 
-            offset_x, offset_y,
-            scaled_w / width, scaled_h / height
-        )
+        return WindowScaling(scaled_w, scaled_h, offset_x, offset_y, scaled_w / width, scaled_h / height)
 
     def paintEvent(self, event):
         if self.frame is not None:
@@ -157,28 +153,19 @@ class MouseEventListener(QWidget):
             qimage = QImage(image.data, width, height, 3 * width, QImage.Format_RGB888)
             qp = QPainter(self)
             qp.drawPixmap(
-                QRect(self.scaling.x_offset, self.scaling.y_offset, 
-                     self.scaling.scaled_width, self.scaling.scaled_height),
-                QPixmap.fromImage(qimage).scaled(
-                    self.scaling.scaled_width, self.scaling.scaled_height, 
-                    Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                QRect(self.scaling.x_offset, self.scaling.y_offset, self.scaling.scaled_width, self.scaling.scaled_height),
+                QPixmap.fromImage(qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
-            # Draw segmentation mask if available
-            if self.is_frozen and self.masks:
-                self.draw_masks(qp, height, width)
-
-            # Draw detection boxes and labels if frozen
             if self.is_frozen:
                 self.draw_detections(qp)
+                self.draw_masks(qp, height, width)
+
 
             # Calculate and draw buttons
             button_y = self.scaling.y_offset + self.scaling.scaled_height - self.button_radius - 10
-            self.freeze_button_center = (
-                self.scaling.x_offset + self.scaling.scaled_width // 2, 
-                button_y
-            )
-            
+            self.freeze_button_center = (self.scaling.x_offset + self.scaling.scaled_width // 2, button_y)
+
             # Draw clear button if frozen
             if self.is_frozen:
                 clear_width = 60
@@ -186,7 +173,7 @@ class MouseEventListener(QWidget):
                 clear_x = self.scaling.x_offset + self.scaling.scaled_width - clear_width - 10
                 clear_y = self.scaling.y_offset + self.scaling.scaled_height - clear_height - 10
                 self.clear_button_rect = QRect(clear_x, clear_y, clear_width, clear_height)
-                
+
                 qp.setPen(QPen(QColor(255, 255, 255), 2))
                 qp.setBrush(QColor(128, 128, 128, 180))
                 qp.drawRect(self.clear_button_rect)
@@ -210,7 +197,6 @@ class MouseEventListener(QWidget):
                 r = self.button_radius
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
-
 
     def draw_masks(self, qp, height, width):
         if not self.masks: return
@@ -262,11 +248,11 @@ class MouseEventListener(QWidget):
         assert self.frame is not None
         height, width = self.frame.shape[:2]
         scaling = self._get_scaling()
-        
+
         # Convert click to image coordinates
         img_x = (event.x() - scaling.x_offset) / scaling.scale_x
         img_y = (event.y() - scaling.y_offset) / scaling.scale_y
-        
+
         return Point(img_x, img_y), width, height
 
     def segment(self, event):
