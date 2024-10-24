@@ -50,15 +50,28 @@ class MaskColor(Enum):
 
 @dataclass
 class Mask:
-    point: Point  # click coordinates
-    masks: np.ndarray  # computed masks for the current point
-    active: int  # index of the active mask
-    label: Literal[0, 1] = 1  # background (0) or foreground (1)
+    points: list[Point]  # click coordinates for all points in this mask
+    labels: list[Literal[0, 1]]  # background (0) or foreground (1) for each point
+    masks: np.ndarray  # computed masks for all points
+    active: int  # index of the active mask variant
     color: MaskColor = MaskColor.BLUE
+    name: str = ""  # display name for the mask
+
+    def __init__(self, name: str):
+        self.points = []
+        self.labels = []
+        self.masks = np.array([])
+        self.active = 0
+        self.color = MaskColor.BLUE
+        self.name = name
 
     @property
     def active_mask(self):
-        return self.masks[self.active]
+        return self.masks[self.active] if len(self.masks) > 0 else None
+
+    def add_point(self, point: Point, label: Literal[0, 1] = 1):
+        self.points.append(point)
+        self.labels.append(label)
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -81,10 +94,16 @@ class MouseEventListener(QWidget):
         self.frozen_frame = None
         self.detections = None
         self.masks: list[Mask] = []
+        self.selected_mask_index: int | None = None
+        self.mask_button_width = 80
+        self.mask_button_height = 30
+        self.mask_button_spacing = 10
 
     @property
-    def seg_points(self):
-        return [mask.point for mask in self.masks]
+    def active_mask(self) -> Mask | None:
+        if self.selected_mask_index is None:
+            return None
+        return self.masks[self.selected_mask_index]
 
     def initUI(self):
         self.setGeometry(300, 300, 800, 600)
@@ -100,8 +119,24 @@ class MouseEventListener(QWidget):
             self.masks.clear()
             self.update()
         elif self.is_frozen and self.frame is not None:
-            if event.button() == Qt.LeftButton: self.segment(event)
-            else: self.toggle_point_label(event)
+            # Check if click is on mask selection buttons
+            mask_clicked = self.get_clicked_mask_button(event.x(), event.y())
+            if mask_clicked is not None:
+                if mask_clicked == len(self.masks):  # "Add Mask" button
+                    new_mask = Mask(f"Mask {len(self.masks) + 1}")
+                    self.masks.append(new_mask)
+                    self.selected_mask_index = len(self.masks) - 1
+                else:
+                    self.selected_mask_index = mask_clicked
+                self.update()
+                return
+
+            # Handle image clicks only if a mask is selected
+            if self.selected_mask_index is not None:
+                if event.button() == Qt.LeftButton:
+                    self.segment(event)
+                else:
+                    self.toggle_point_label(event)
 
     def is_freeze_button_press(self, x, y):
         assert self.freeze_button_center is not None
@@ -199,13 +234,59 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
+    def get_clicked_mask_button(self, x: int, y: int) -> int | None:
+        """Returns index of clicked mask button, or None if no button clicked"""
+        window_height = self.height()
+        total_height = (len(self.masks) + 1) * (self.mask_button_height + self.mask_button_spacing)
+        start_y = (window_height - total_height) // 2
+
+        for i in range(len(self.masks) + 1):
+            button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
+            if (0 <= x <= self.mask_button_width and 
+                button_y <= y <= button_y + self.mask_button_height):
+                return i
+        return None
+
+    def draw_mask_buttons(self, qp: QPainter):
+        """Draw mask selection buttons on the left side"""
+        window_height = self.height()
+        total_height = (len(self.masks) + 1) * (self.mask_button_height + self.mask_button_spacing)
+        start_y = (window_height - total_height) // 2
+
+        for i, mask in enumerate(self.masks):
+            button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
+            button_rect = QRect(0, button_y, self.mask_button_width, self.mask_button_height)
+
+            # Draw button background
+            if i == self.selected_mask_index:
+                qp.setBrush(QColor(100, 100, 100, 180))
+            else:
+                qp.setBrush(QColor(60, 60, 60, 180))
+            qp.setPen(QPen(QColor(255, 255, 255), 2))
+            qp.drawRect(button_rect)
+
+            # Draw text
+            qp.drawText(button_rect, Qt.AlignCenter, mask.name)
+
+        # Draw "Add Mask" button
+        add_button_y = start_y + len(self.masks) * (self.mask_button_height + self.mask_button_spacing)
+        add_button_rect = QRect(0, add_button_y, self.mask_button_width, self.mask_button_height)
+        qp.setBrush(QColor(60, 60, 60, 180))
+        qp.setPen(QPen(QColor(255, 255, 255), 2))
+        qp.drawRect(add_button_rect)
+        qp.drawText(add_button_rect, Qt.AlignCenter, "Add Mask")
+
     def draw_masks(self, qp=None):
         if not self.masks or self.frame is None: return
         if qp is None: qp = QPainter(self)
         height, width = self.frame.shape[:2]
 
+        # Draw mask buttons
+        self.draw_mask_buttons(qp)
+
         # Draw each mask with its color
         for mask in self.masks:
+            if mask.active_mask is None: continue
             mask_image = cv2.resize(mask.active_mask.astype(np.uint8) * 255, (width, height))
             mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
             r, g, b = mask.color.rgb
@@ -217,10 +298,11 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
-            # Draw segmentation point
-            x, y = mask.point
-            _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
-            _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
+            # Draw segmentation points
+            for point, label in zip(mask.points, mask.labels):
+                x, y = point
+                _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
+                _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
             # make the color more vibrant
             avg = sum(mask.color.rgb) / 3
             r = min(255, max(0, round(avg + (r-avg) * 3)))
@@ -264,46 +346,58 @@ class MouseEventListener(QWidget):
         return Point(img_x, img_y), width, height
 
     def toggle_point_label(self, event):
+        if self.active_mask is None: return
         point, width, height = self._window_to_image_coords(event)
         if not ((0 <= point.x < width) and (0 <= point.y < height)): return
-        for idx, mask in enumerate(self.masks):
-            if abs(mask.point.x - point.x) <= SEG_POINT_RADIUS and abs(mask.point.y - point.y) <= SEG_POINT_RADIUS:
-                # Toggle label
-                new_label = 1 if mask.label == 0 else 0
-                # Recompute masks with new label
+
+        # Find if we clicked near any existing point
+        for i, existing_point in enumerate(self.active_mask.points):
+            if abs(existing_point.x - point.x) <= SEG_POINT_RADIUS and abs(existing_point.y - point.y) <= SEG_POINT_RADIUS:
+                # Toggle label for this point
+                self.active_mask.labels[i] = 1 if self.active_mask.labels[i] == 0 else 0
+                
+                # Recompute masks with updated labels
                 with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                     sam2.set_image(self.frame)
-                    masks, _, _ = sam2.predict([mask.point], [new_label])
-                # Replace the mask
-                self.masks[idx] = Mask(mask.point, masks, 0, label=new_label)
+                    masks, _, _ = sam2.predict(
+                        self.active_mask.points,
+                        self.active_mask.labels
+                    )
+                self.active_mask.masks = masks
                 self.update()
                 break
 
     def segment(self, event):
+        if self.active_mask is None: return
         point, width, height = self._window_to_image_coords(event)
         if not ((0 <= point.x < width) and (0 <= point.y < height)): return
 
-        # check if click is a pre-existing point
-        repeat_idx = None
-        for idx, (x, y) in enumerate(self.seg_points):
-            if abs(x - point.x) <= SEG_POINT_RADIUS and abs(y - point.y) <= SEG_POINT_RADIUS:
-                repeat_idx = idx
-                break
+        # Check if click is on existing point
+        for i, existing_point in enumerate(self.active_mask.points):
+            if abs(existing_point.x - point.x) <= SEG_POINT_RADIUS and abs(existing_point.y - point.y) <= SEG_POINT_RADIUS:
+                # Cycle through mask variants
+                if self.active_mask.active < len(self.active_mask.masks) - 1:
+                    self.active_mask.active += 1
+                    self.active_mask.color = MaskColor.get_next_color(self.active_mask.color)
+                else:
+                    self.active_mask.active = 0
+                self.update()
+                return
 
-        if repeat_idx is not None:  # cycle mask
-            mask = self.masks[repeat_idx]
-            if mask.active < len(mask.masks) - 1:
-                mask.active += 1
-                mask.color = MaskColor.get_next_color(mask.color)
-            else:
-                self.masks.pop(repeat_idx)
-        else:  # new mask
-            with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-                sam2.set_image(self.frame)
-                masks, _, _ = sam2.predict([point], [1])
-            print(f"Computed {len(masks)} masks for {point}")
-            self.masks.append(Mask(point, masks, 0))
+        # Add new point to active mask
+        self.active_mask.points.append(point)
+        self.active_mask.labels.append(1)  # Default to foreground
 
+        # Compute new masks with all points
+        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+            sam2.set_image(self.frame)
+            masks, _, _ = sam2.predict(
+                self.active_mask.points,
+                self.active_mask.labels
+            )
+        print(f"Computed {len(masks)} masks for {len(self.active_mask.points)} points")
+        self.active_mask.masks = masks
+        self.active_mask.active = 0
         self.update()
 
     def closeEvent(self, event):
