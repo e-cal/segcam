@@ -161,7 +161,7 @@ class MouseEventListener(QWidget):
             )
 
             if self.is_frozen:
-                self.draw_masks(qp, height, width)
+                self.draw_masks(qp)
                 self.draw_detections(qp)
 
 
@@ -201,8 +201,10 @@ class MouseEventListener(QWidget):
                 qp.drawLine(x - r, y - r, x + r, y + r)
                 qp.drawLine(x - r, y + r, x + r, y - r)
 
-    def draw_masks(self):
-        if not self.masks: return
+    def draw_masks(self, qp=None):
+        if not self.masks or self.frame is None: return
+        if qp is None: qp = QPainter(self)
+        height, width = self.frame.shape[:2]
 
         # Draw each mask with its color
         for mask in self.masks:
@@ -265,7 +267,8 @@ class MouseEventListener(QWidget):
             if abs(mask.point.x - point.x) <= SEG_POINT_RADIUS and abs(mask.point.y - point.y) <= SEG_POINT_RADIUS:
                 mask.label = 1 if mask.label == 0 else 0
                 print(mask.label)
-                self.draw_masks()
+                # self.draw_masks()
+                self.segment(event)
                 break
 
     def segment(self, event):
