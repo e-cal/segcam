@@ -243,9 +243,26 @@ class MouseEventListener(QWidget):
 
         for i in range(len(self.masks) + 1):
             button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
+            
+            # Check main mask button
             if (0 <= x <= self.mask_button_width and 
                 button_y <= y <= button_y + self.mask_button_height):
                 return i
+            
+            # Check "Next" button for selected mask
+            if (i == self.selected_mask_index and
+                self.mask_button_width + 5 <= x <= self.mask_button_width + 45 and
+                button_y <= y <= button_y + self.mask_button_height):
+                # Cycle through mask variants
+                if self.active_mask and len(self.active_mask.masks) > 0:
+                    if self.active_mask.active < len(self.active_mask.masks) - 1:
+                        self.active_mask.active += 1
+                        self.active_mask.color = MaskColor.get_next_color(self.active_mask.color)
+                    else:
+                        self.active_mask.active = 0
+                    self.update()
+                return None
+                
         return None
 
     def draw_mask_buttons(self, qp: QPainter):
@@ -256,17 +273,27 @@ class MouseEventListener(QWidget):
 
         for i, mask in enumerate(self.masks):
             button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
+            
+            # Main mask button
             button_rect = QRect(0, button_y, self.mask_button_width, self.mask_button_height)
-
-            # Draw button background
             if i == self.selected_mask_index:
                 qp.setBrush(QColor(100, 100, 100, 180))
+                # Draw "Next" button
+                next_button_rect = QRect(
+                    self.mask_button_width + 5, 
+                    button_y, 
+                    40, 
+                    self.mask_button_height
+                )
+                qp.setBrush(QColor(60, 60, 60, 180))
+                qp.setPen(QPen(QColor(255, 255, 255), 2))
+                qp.drawRect(next_button_rect)
+                qp.drawText(next_button_rect, Qt.AlignCenter, "Next")
             else:
                 qp.setBrush(QColor(60, 60, 60, 180))
+            
             qp.setPen(QPen(QColor(255, 255, 255), 2))
             qp.drawRect(button_rect)
-
-            # Draw text
             qp.drawText(button_rect, Qt.AlignCenter, mask.name)
 
         # Draw "Add Mask" button
@@ -378,12 +405,22 @@ class MouseEventListener(QWidget):
         # Check if click is on existing point
         for i, existing_point in enumerate(self.active_mask.points):
             if abs(existing_point.x - point.x) <= SEG_POINT_RADIUS and abs(existing_point.y - point.y) <= SEG_POINT_RADIUS:
-                # Cycle through mask variants
-                if self.active_mask.active < len(self.active_mask.masks) - 1:
-                    self.active_mask.active += 1
-                    self.active_mask.color = MaskColor.get_next_color(self.active_mask.color)
-                else:
+                # Remove the point
+                self.active_mask.points.pop(i)
+                self.active_mask.labels.pop(i)
+                
+                # Recompute masks if there are still points
+                if self.active_mask.points:
+                    with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                        sam2.set_image(self.frame)
+                        masks, _, _ = sam2.predict(
+                            self.active_mask.points,
+                            self.active_mask.labels
+                        )
+                    self.active_mask.masks = masks
                     self.active_mask.active = 0
+                else:
+                    self.active_mask.masks = np.array([])
                 self.update()
                 return
 
@@ -398,7 +435,6 @@ class MouseEventListener(QWidget):
                 self.active_mask.points,
                 self.active_mask.labels
             )
-        print(f"Computed {len(masks)} masks for {len(self.active_mask.points)} points")
         self.active_mask.masks = masks
         self.active_mask.active = 0
         self.update()
