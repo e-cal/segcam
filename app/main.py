@@ -303,7 +303,7 @@ class MouseEventListener(QWidget):
                 
                 # Check if X button was clicked (for existing masks only)
                 if i < len(self.masks):
-                    x_button_x = self.mask_button_width - 20
+                    x_button_x = self.mask_button_width - 15
                     if x_button_x <= x <= self.mask_button_width and button_y <= y <= button_y + 20:
                         return i, True
                 return i, False
@@ -327,8 +327,8 @@ class MouseEventListener(QWidget):
             qp.drawRect(button_rect)
             qp.drawText(button_rect, Qt.AlignCenter, mask.name)
 
-            # Draw X button
-            x_button_x = self.mask_button_width - 20
+            # Draw X button in top-right corner
+            x_button_x = self.mask_button_width - 15
             qp.setPen(QPen(QColor(255, 100, 100), 2))
             qp.drawLine(x_button_x, button_y + 5, x_button_x + 10, button_y + 15)
             qp.drawLine(x_button_x, button_y + 15, x_button_x + 10, button_y + 5)
