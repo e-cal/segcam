@@ -398,7 +398,22 @@ class MouseEventListener(QWidget):
                     )
                 self.active_mask.masks = masks
                 self.update()
-                break
+                return
+
+        # If no existing point was clicked, add a new negative point
+        self.active_mask.points.append(point)
+        self.active_mask.labels.append(0)  # Add as background point
+
+        # Compute new masks with all points
+        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+            sam2.set_image(self.frame)
+            masks, _, _ = sam2.predict(
+                self.active_mask.points,
+                self.active_mask.labels
+            )
+        self.active_mask.masks = masks
+        self.active_mask.active = 0
+        self.update()
 
     def segment(self, event):
         if self.active_mask is None: return
