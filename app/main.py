@@ -193,8 +193,11 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
+            # Always draw mask buttons
+            self.draw_mask_buttons(qp)
+
             if self.is_frozen:
-                self.draw_masks(qp)
+                self.draw_masks(qp, draw_buttons=False)
                 self.draw_detections(qp)
 
 
@@ -276,13 +279,14 @@ class MouseEventListener(QWidget):
         qp.drawRect(add_button_rect)
         qp.drawText(add_button_rect, Qt.AlignCenter, "Add Mask")
 
-    def draw_masks(self, qp=None):
+    def draw_masks(self, qp=None, draw_buttons=True):
         if not self.masks or self.frame is None: return
         if qp is None: qp = QPainter(self)
         height, width = self.frame.shape[:2]
 
-        # Draw mask buttons
-        self.draw_mask_buttons(qp)
+        # Draw mask buttons if requested
+        if draw_buttons:
+            self.draw_mask_buttons(qp)
 
         # Draw each mask with its color
         for mask in self.masks:
