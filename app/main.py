@@ -203,7 +203,17 @@ class MouseEventListener(QWidget):
     def freeze(self):
         self.update_img()
         if self.frame is not None:
+            # Get YOLO detections
             self.detections = yolo(self.frame)[0].boxes.data
+            
+            # Recalculate masks for all masks that have points
+            for mask in self.masks:
+                if mask.points:
+                    with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                        sam2.set_image(self.frame)
+                        masks, _, _ = sam2.predict(mask.points, mask.labels)
+                    mask.masks = masks
+                    mask.active = 0
 
     def _get_scaling(self):
         """Calculate window scaling parameters to maintain aspect ratio"""
