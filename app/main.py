@@ -322,7 +322,11 @@ class MouseEventListener(QWidget):
             
             # Main mask button
             button_rect = QRect(0, button_y, self.mask_button_width, self.mask_button_height)
-            qp.setBrush(QColor(100, 100, 100, 180) if i == self.selected_mask_index else QColor(60, 60, 60, 180))
+            r, g, b = mask.color.rgb
+            if i == self.selected_mask_index:
+                qp.setBrush(QColor(r, g, b, 180))
+            else:
+                qp.setBrush(QColor(r, g, b, 120))
             
             qp.setPen(QPen(QColor(255, 255, 255), 2))
             qp.drawRect(button_rect)
