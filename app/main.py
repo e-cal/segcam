@@ -32,9 +32,9 @@ class WindowScaling:
     scale_y: float
 
 class MaskColor(Enum):
-    GREEN = (0, 255, 115)
-    BLUE = (33, 150, 243)
+    BLUE = (100, 150, 255)
     PINK = (233, 30, 99)
+    YELLOW = (252, 190, 73)
 
     @classmethod
     def get_next_color(cls, color):
@@ -54,7 +54,7 @@ class Mask:
     masks: np.ndarray  # computed masks for the current point
     active: int  # index of the active mask
     label: Literal[0, 1] = 1  # background (0) or foreground (1)
-    color: MaskColor = MaskColor.GREEN
+    color: MaskColor = MaskColor.BLUE
 
     @property
     def active_mask(self):
@@ -100,10 +100,7 @@ class MouseEventListener(QWidget):
             self.masks.clear()
             self.update()
         elif self.is_frozen and self.frame is not None:
-            if event.button() == Qt.RightButton:
-                self.toggle_point_label(event)
-            else:
-                self.segment(event)
+            if event.button() == Qt.LeftButton: self.segment(event)
 
     def is_freeze_button_press(self, x, y):
         assert self.freeze_button_center is not None
@@ -219,11 +216,16 @@ class MouseEventListener(QWidget):
                 QPixmap.fromImage(mask_qimage).scaled(self.scaling.scaled_width, self.scaling.scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
 
-            # Draw segmentation point with matching color
+            # Draw segmentation point
             x, y = mask.point
             _x = int(x * self.scaling.scale_x) + self.scaling.x_offset
             _y = int(y * self.scaling.scale_y) + self.scaling.y_offset
-            qp.setPen(QPen(QColor(*mask.color.rgb), 4))
+            # make the color more vibrant
+            avg = sum(mask.color.rgb) / 3
+            r = min(255, max(0, round(avg + (r-avg) * 3)))
+            g = min(255, max(0, round(avg + (g-avg) * 3)))
+            b = min(255, max(0, round(avg + (b-avg) * 3)))
+            qp.setPen(QPen(QColor(r, g, b), 5))
             qp.drawPoint(_x, _y)
 
     def draw_detections(self, qp):
@@ -259,22 +261,6 @@ class MouseEventListener(QWidget):
         img_y = (event.y() - scaling.y_offset) / scaling.scale_y
 
         return Point(img_x, img_y), width, height
-
-    def toggle_point_label(self, event):
-        point, width, height = self._window_to_image_coords(event)
-        if not ((0 <= point.x < width) and (0 <= point.y < height)): return
-        for idx, mask in enumerate(self.masks):
-            if abs(mask.point.x - point.x) <= SEG_POINT_RADIUS and abs(mask.point.y - point.y) <= SEG_POINT_RADIUS:
-                # Toggle label
-                new_label = 1 if mask.label == 0 else 0
-                # Recompute masks with new label
-                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-                    sam2.set_image(self.frame)
-                    masks, _, _ = sam2.predict([mask.point], [new_label])
-                # Replace the mask
-                self.masks[idx] = Mask(mask.point, masks, 0, label=new_label)
-                self.update()
-                break
 
     def segment(self, event):
         point, width, height = self._window_to_image_coords(event)
