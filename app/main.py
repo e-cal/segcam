@@ -93,6 +93,7 @@ class MouseEventListener(QWidget):
         self.is_frozen = False
         self.frozen_frame = None
         self.detections = None
+        self.show_detections = True  # Add flag for detection visibility
         self.masks: list[Mask] = []
         self.selected_mask_index: int | None = None
         self.mask_button_width = 80
@@ -117,6 +118,9 @@ class MouseEventListener(QWidget):
             self.update()
         elif self.is_clear_button_press(event.x(), event.y()):
             self.masks.clear()
+            self.update()
+        elif self.is_show_hide_button_press(event.x(), event.y()):
+            self.show_detections = not self.show_detections
             self.update()
         elif self.is_frozen and self.frame is not None:
             # Check if click is on mask selection buttons
@@ -147,6 +151,11 @@ class MouseEventListener(QWidget):
         if not self.is_frozen or self.clear_button_rect is None:
             return False
         return self.clear_button_rect.contains(x, y)
+
+    def is_show_hide_button_press(self, x, y):
+        if not self.is_frozen or not hasattr(self, 'show_hide_button_rect'):
+            return False
+        return self.show_hide_button_rect.contains(x, y)
 
     def update_img(self):
         if not self.is_frozen:
@@ -205,16 +214,29 @@ class MouseEventListener(QWidget):
 
             # Draw clear button if frozen
             if self.is_frozen:
-                clear_width = 60
-                clear_height = 30
-                clear_x = self.scaling.x_offset + self.scaling.scaled_width - clear_width - 10
-                clear_y = self.scaling.y_offset + self.scaling.scaled_height - clear_height - 10
-                self.clear_button_rect = QRect(clear_x, clear_y, clear_width, clear_height)
+                button_width = 60
+                button_height = 30
+                button_spacing = 10
+                
+                # Clear button
+                clear_x = self.scaling.x_offset + self.scaling.scaled_width - button_width - 10
+                clear_y = self.scaling.y_offset + self.scaling.scaled_height - button_height - 10
+                self.clear_button_rect = QRect(clear_x, clear_y, button_width, button_height)
 
                 qp.setPen(QPen(QColor(255, 255, 255), 2))
                 qp.setBrush(QColor(128, 128, 128, 180))
                 qp.drawRect(self.clear_button_rect)
                 qp.drawText(self.clear_button_rect, Qt.AlignCenter, "Clear")
+
+                # Show/Hide button
+                show_hide_x = clear_x
+                show_hide_y = clear_y - button_height - button_spacing
+                self.show_hide_button_rect = QRect(show_hide_x, show_hide_y, button_width, button_height)
+
+                qp.setPen(QPen(QColor(255, 255, 255), 2))
+                qp.setBrush(QColor(128, 128, 128, 180))
+                qp.drawRect(self.show_hide_button_rect)
+                qp.drawText(self.show_hide_button_rect, Qt.AlignCenter, "Hide" if self.show_detections else "Show")
 
             # Draw freeze/unfreeze button
             qp.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine))
@@ -341,7 +363,7 @@ class MouseEventListener(QWidget):
                 qp.drawPoint(_x, _y)
 
     def draw_detections(self, qp):
-        if self.detections is None: return
+        if self.detections is None or not self.show_detections: return
 
         qp.setPen(QPen(QColor(255, 0, 0), 2))
         qp.setBrush(Qt.NoBrush)
