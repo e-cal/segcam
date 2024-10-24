@@ -156,9 +156,12 @@ class MouseEventListener(QWidget):
                 elif mask_clicked == len(self.masks):  # "Add Mask" button
                     mask_index = len(self.masks)
                     new_mask = Mask(f"Mask {mask_index + 1}")
-                    # Set color based on mask index
-                    colors = list(MaskColor)
-                    new_mask.color = colors[mask_index % len(colors)]
+                    # Set color based on previous mask's color
+                    if self.masks:
+                        prev_color = self.masks[-1].color
+                        new_mask.color = MaskColor.get_next_color(prev_color)
+                    else:
+                        new_mask.color = MaskColor.BLUE
                     self.masks.append(new_mask)
                     self.selected_mask_index = len(self.masks) - 1
                 else:
