@@ -161,8 +161,8 @@ class MouseEventListener(QWidget):
             )
 
             if self.is_frozen:
-                self.draw_detections(qp)
                 self.draw_masks(qp, height, width)
+                self.draw_detections(qp)
 
 
             # Calculate and draw buttons
@@ -261,13 +261,11 @@ class MouseEventListener(QWidget):
     def toggle_point_label(self, event):
         point, width, height = self._window_to_image_coords(event)
         if not ((0 <= point.x < width) and (0 <= point.y < height)): return
-
-        # Find if click is on existing point
         for mask in self.masks:
             if abs(mask.point.x - point.x) <= SEG_POINT_RADIUS and abs(mask.point.y - point.y) <= SEG_POINT_RADIUS:
-                # Toggle label between 0 and 1
                 mask.label = 1 if mask.label == 0 else 0
-                self.update()
+                print(mask.label)
+                self.draw_masks()
                 break
 
     def segment(self, event):
