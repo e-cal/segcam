@@ -112,9 +112,18 @@ class MouseEventListener(QWidget):
         self.show()
 
     def mousePressEvent(self, event):
+        if not self.is_frozen:
+            if self.is_freeze_button_press(event.x(), event.y()):
+                self.freeze()
+                self.is_frozen = True
+                self.update()
+            return
+
+        if self.frame is None:
+            return
+
         if self.is_freeze_button_press(event.x(), event.y()):
-            if not self.is_frozen: self.freeze()
-            self.is_frozen = not self.is_frozen
+            self.is_frozen = False
             self.update()
         elif self.is_clear_button_press(event.x(), event.y()):
             self.masks.clear()
@@ -122,7 +131,7 @@ class MouseEventListener(QWidget):
         elif self.is_show_hide_button_press(event.x(), event.y()):
             self.show_detections = not self.show_detections
             self.update()
-        elif self.is_frozen and self.frame is not None:
+        else:
             # Check all button areas first
             if (self.is_freeze_button_press(event.x(), event.y()) or
                 self.is_clear_button_press(event.x(), event.y()) or
