@@ -1,18 +1,19 @@
-from collections import namedtuple
-from enum import Enum
-import sys
-from typing import Literal, NamedTuple
-from PyQt5.QtWidgets import QWidget, QApplication
-from PyQt5.QtCore import Qt, QTimer, QRect
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
-import cv2
 import math
+import sys
+from collections import namedtuple
+from dataclasses import dataclass
+from enum import Enum
+from typing import Literal
+
+import cv2
 import numpy as np
-from ultralytics import YOLO, SAM
 import torch
+from PyQt5.QtCore import QRect, Qt, QTimer
+from PyQt5.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PyQt5.QtWidgets import QApplication, QWidget
 from sam2.build_sam import build_sam2  # type: ignore
 from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore
-from dataclasses import dataclass
+from ultralytics import YOLO
 
 yolo = YOLO("yolo11n.pt")
 # sam = SAM("sam2_s.pt")
@@ -135,9 +136,10 @@ class MouseEventListener(QWidget):
             self.update()
         else:
             # Check all button areas first
-            if (self.is_freeze_button_press(event.x(), event.y()) or
-                self.is_clear_button_press(event.x(), event.y()) or
-                self.is_show_hide_button_press(event.x(), event.y())):
+            if (
+                self.is_freeze_button_press(event.x(), event.y()) or self.is_clear_button_press(event.x(), event.y())
+                or self.is_show_hide_button_press(event.x(), event.y())
+            ):
                 return
 
             # Check if click is on mask selection buttons
@@ -245,7 +247,6 @@ class MouseEventListener(QWidget):
                 # Draw buttons last (foreground layer)
                 self.draw_mask_buttons(qp)
 
-
             # Calculate and draw buttons
             button_y = self.scaling.y_offset + self.scaling.scaled_height - self.button_radius - 10
             self.freeze_button_center = (self.scaling.x_offset + self.scaling.scaled_width // 2, button_y)
@@ -255,7 +256,7 @@ class MouseEventListener(QWidget):
                 button_width = 60
                 button_height = 30
                 button_spacing = 10
-                
+
                 # Clear button
                 clear_x = self.scaling.x_offset + self.scaling.scaled_width - button_width - 10
                 clear_y = self.scaling.y_offset + self.scaling.scaled_height - button_height - 10
@@ -303,18 +304,17 @@ class MouseEventListener(QWidget):
 
         for i in range(len(self.masks) + 1):
             button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
-            
+
             # Check main mask button
-            if (0 <= x <= self.mask_button_width and 
-                button_y <= y <= button_y + self.mask_button_height):
-                
+            if (0 <= x <= self.mask_button_width and button_y <= y <= button_y + self.mask_button_height):
+
                 # Check if X button was clicked (for existing masks only)
                 if i < len(self.masks):
                     x_button_x = self.mask_button_width - 15
                     if x_button_x <= x <= self.mask_button_width and button_y <= y <= button_y + 20:
                         return i, True
                 return i, False
-            
+
         return None, False
 
     def draw_mask_buttons(self, qp: QPainter):
@@ -325,7 +325,7 @@ class MouseEventListener(QWidget):
 
         for i, mask in enumerate(self.masks):
             button_y = start_y + i * (self.mask_button_height + self.mask_button_spacing)
-            
+
             # Main mask button
             button_rect = QRect(0, button_y, self.mask_button_width, self.mask_button_height)
             r, g, b = mask.color.rgb
@@ -333,7 +333,7 @@ class MouseEventListener(QWidget):
                 qp.setBrush(QColor(r, g, b, 180))
             else:
                 qp.setBrush(QColor(r, g, b, 120))
-            
+
             qp.setPen(QPen(QColor(255, 255, 255), 2))
             qp.drawRect(button_rect)
             qp.drawText(button_rect, Qt.AlignCenter, mask.name)
@@ -431,14 +431,11 @@ class MouseEventListener(QWidget):
             if abs(existing_point.x - point.x) <= SEG_POINT_RADIUS and abs(existing_point.y - point.y) <= SEG_POINT_RADIUS:
                 # Toggle label for this point
                 self.active_mask.labels[i] = 1 if self.active_mask.labels[i] == 0 else 0
-                
+
                 # Recompute masks with updated labels
                 with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                     sam2.set_image(self.frame)
-                    masks, _, _ = sam2.predict(
-                        self.active_mask.points,
-                        self.active_mask.labels
-                    )
+                    masks, _, _ = sam2.predict(self.active_mask.points, self.active_mask.labels)
                 self.active_mask.masks = masks
                 self.update()
                 return
@@ -450,10 +447,7 @@ class MouseEventListener(QWidget):
         # Compute new masks with all points
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
             sam2.set_image(self.frame)
-            masks, _, _ = sam2.predict(
-                self.active_mask.points,
-                self.active_mask.labels
-            )
+            masks, _, _ = sam2.predict(self.active_mask.points, self.active_mask.labels)
         self.active_mask.masks = masks
         self.active_mask.active = 0
         self.update()
@@ -469,15 +463,12 @@ class MouseEventListener(QWidget):
                 # Remove the point
                 self.active_mask.points.pop(i)
                 self.active_mask.labels.pop(i)
-                
+
                 # Recompute masks if there are still points
                 if self.active_mask.points:
                     with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                         sam2.set_image(self.frame)
-                        masks, _, _ = sam2.predict(
-                            self.active_mask.points,
-                            self.active_mask.labels
-                        )
+                        masks, _, _ = sam2.predict(self.active_mask.points, self.active_mask.labels)
                     self.active_mask.masks = masks
                     self.active_mask.active = 0
                 else:
@@ -493,10 +484,7 @@ class MouseEventListener(QWidget):
         # Compute new masks with all points
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
             sam2.set_image(self.frame)
-            masks, _, _ = sam2.predict(
-                self.active_mask.points,
-                self.active_mask.labels
-            )
+            masks, _, _ = sam2.predict(self.active_mask.points, self.active_mask.labels)
         self.active_mask.masks = masks
         self.active_mask.active = 0
         self.update()
