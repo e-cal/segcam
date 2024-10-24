@@ -361,9 +361,14 @@ class MouseEventListener(QWidget):
         if draw_buttons:
             self.draw_mask_buttons(qp)
 
-        # Draw each mask with its color
+        # Draw non-selected masks first
         for mask in self.masks:
-            if mask.active_mask is None: continue
+            if mask.active_mask is None or mask == self.active_mask:
+                continue
+            
+        # Draw selected mask last so it's on top
+        if self.active_mask and self.active_mask.active_mask is not None:
+            mask = self.active_mask
             mask_image = cv2.resize(mask.active_mask.astype(np.uint8) * 255, (width, height))
             mask_colored = np.zeros((height, width, 4), dtype=np.uint8)
             r, g, b = mask.color.rgb
