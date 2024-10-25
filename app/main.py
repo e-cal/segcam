@@ -58,7 +58,7 @@ class Mask:
     masks: np.ndarray  # computed masks for all points
     active: int  # index of the active mask variant
     color: MaskColor = MaskColor.BLUE
-    name: str = ""  # display name for the mask
+    name: str = ""
 
     def __init__(self, name: str):
         self.points = []
@@ -71,10 +71,6 @@ class Mask:
     @property
     def active_mask(self):
         return self.masks[self.active] if len(self.masks) > 0 else None
-
-    def add_point(self, point: Point, label: Literal[0, 1] = 1):
-        self.points.append(point)
-        self.labels.append(label)
 
 class MouseEventListener(QWidget):
     def __init__(self):
@@ -135,18 +131,9 @@ class MouseEventListener(QWidget):
             self.show_detections = not self.show_detections
             self.update()
         else:
-            # Check all button areas first
-            if (
-                self.is_freeze_button_press(event.x(), event.y()) or self.is_clear_button_press(event.x(), event.y())
-                or self.is_show_hide_button_press(event.x(), event.y())
-            ):
-                return
-
-            # Check if click is on mask selection buttons
             mask_clicked, is_delete = self.get_clicked_mask_button(event.x(), event.y())
             if mask_clicked is not None:
                 if is_delete:
-                    # Delete the mask and update names/indices
                     self.masks.pop(mask_clicked)
                     # Update mask names only
                     for i, mask in enumerate(self.masks):
@@ -205,7 +192,7 @@ class MouseEventListener(QWidget):
         if self.frame is not None:
             # Get YOLO detections
             self.detections = yolo(self.frame)[0].boxes.data
-            
+
             # Recalculate masks for all masks that have points
             for mask in self.masks:
                 if mask.points:
