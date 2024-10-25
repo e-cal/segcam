@@ -33,6 +33,7 @@ class WindowScaling:
     scale_y: float
 
 class MaskColor(Enum):
+    ORANGE = (255, 140, 0)
     BLUE = (100, 150, 255)
     PINK = (233, 30, 99)
     YELLOW = (252, 190, 73)
