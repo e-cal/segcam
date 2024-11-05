@@ -8,7 +8,7 @@ Raspberry-pi based camera that lets you segment and object track photo & video o
 
 1. Flash sd card with nixos sd image
     - [Download latest image](https://hydra.nixos.org/job/nixos/release-24.05/nixos.sd_image.aarch64-linux)
-        - or the one I used for guarunteed compatability: [nixos-sd-image-24.05.5596.d51c28603def-aarch64-linux.img](https://hydra.nixos.org/build/274691934)
+        - the one I used: [nixos-sd-image-24.05.5596.d51c28603def-aarch64-linux.img](https://hydra.nixos.org/build/274691934)
     - if its a `.zst`, decompress 
       ```bash
       unzstd <img-name>.img.zst
