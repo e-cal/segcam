@@ -509,6 +509,17 @@ class MouseEventListener(QWidget):
             self.active_mask.active = (self.active_mask.active + delta) % len(self.active_mask.masks)
             self.update()
 
+    def keyPressEvent(self, event):
+        if self.active_mask and len(self.active_mask.masks) > 0:
+            if event.key() == Qt.Key_Right or event.key() == Qt.Key_Up:
+                # Right/Up arrow cycles forward
+                self.active_mask.active = (self.active_mask.active + 1) % len(self.active_mask.masks)
+                self.update()
+            elif event.key() == Qt.Key_Left or event.key() == Qt.Key_Down:
+                # Left/Down arrow cycles backward
+                self.active_mask.active = (self.active_mask.active - 1) % len(self.active_mask.masks)
+                self.update()
+
     def closeEvent(self, event):
         self.camera.release()
         self.timer.stop()
